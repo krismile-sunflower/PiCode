@@ -6,6 +6,9 @@ import { useAppSnapshot } from './store';
 import { FileSidebar } from '../components/FileSidebar';
 import { MessageList } from '../components/MessageList';
 import { Sidebar } from '../components/Sidebar';
+import { ConfirmHost } from '../components/ConfirmDialog';
+import { ShortcutsHelp } from '../components/ShortcutsHelp';
+import { Onboarding } from '../components/Onboarding';
 import { ChangesView, CustomizationView, ProjectsView, SettingsView } from '../components/Views';
 import {
   CommandPalette,
@@ -97,6 +100,7 @@ export function App() {
     () => localStorage.getItem('tau-file-sidebar') === 'open',
   );
   const [commandsOpen, setCommandsOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<FileAttachment[]>([]);
   const [editingMessage, setEditingMessage] = useState<{ entryId: string; text: string; images?: ImageAttachment[] } | null>(null);
   const [planTabRequest, setPlanTabRequest] = useState(0);
@@ -225,8 +229,19 @@ export function App() {
         toggleFiles();
         return;
       }
+      if (primary && event.shiftKey && event.key.toLowerCase() === 'g') {
+        event.preventDefault();
+        controller.setView('changes');
+        return;
+      }
+      if (primary && event.key === '/') {
+        event.preventDefault();
+        setShortcutsOpen((value) => !value);
+        return;
+      }
       if (event.key === 'Escape') {
-        if (commandsOpen) setCommandsOpen(false);
+        if (shortcutsOpen) setShortcutsOpen(false);
+        else if (commandsOpen) setCommandsOpen(false);
         else if (snapshot.extensionUiRequest) {
           controller.respondToExtension(snapshot.extensionUiRequest, { cancelled: true });
         } else if (snapshot.view !== 'chat') controller.returnToChat();
@@ -247,7 +262,13 @@ export function App() {
     };
     document.addEventListener('keydown', keydown);
     return () => document.removeEventListener('keydown', keydown);
-  }, [commandsOpen, fileOpen, sidebarOpen, snapshot.extensionUiRequest, snapshot.isStreaming, snapshot.view, toggleFiles, toggleSidebar]);
+  }, [commandsOpen, fileOpen, shortcutsOpen, sidebarOpen, snapshot.extensionUiRequest, snapshot.isStreaming, snapshot.view, toggleFiles, toggleSidebar]);
+
+  useEffect(() => {
+    const show = () => setShortcutsOpen(true);
+    window.addEventListener('pi-studio:show-shortcuts', show);
+    return () => window.removeEventListener('pi-studio:show-shortcuts', show);
+  }, []);
 
   useEffect(() => {
     const visibility = () => {
@@ -308,6 +329,11 @@ export function App() {
                   if (!message.sessionEntryId) return;
                   setEditingMessage({ entryId: message.sessionEntryId, text: message.content, images: message.images });
                 }}
+                onForkMessage={(entryId) => {
+                  const filePath = snapshot.selectedSessionFile;
+                  if (filePath) void controller.forkSession(filePath, entryId);
+                }}
+                onRegenerate={() => void controller.regenerateLastResponse()}
                 onRespondToExtension={(request, response) => controller.respondToExtension(request, response)}
               />
               <Composer
@@ -347,8 +373,12 @@ export function App() {
         onClose={() => setCommandsOpen(false)}
         onToggleSidebar={toggleSidebar}
         onToggleFiles={toggleFiles}
+        onShowShortcuts={() => setShortcutsOpen(true)}
       />
+      <ShortcutsHelp open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <ExtensionDialog request={snapshot.extensionUiRequest} />
+      <Onboarding snapshot={snapshot} />
+      <ConfirmHost />
       <ToastRegion />
     </>
   );

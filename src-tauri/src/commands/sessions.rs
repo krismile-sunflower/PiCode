@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{json, Value};
 
+use crate::audit;
 use crate::settings;
 
 pub fn empty_sessions() -> serde_json::Value {
@@ -59,11 +60,49 @@ pub fn search_sessions(query: &str) -> Value {
     json!({ "results": results })
 }
 
+/// Reject anything that is not a single, literal path segment.
+///
+/// `dir_name` and `file` arrive straight from a URL path, so `..` or an
+/// embedded separator would let a caller climb out of the sessions directory
+/// and read any JSONL-shaped file on the machine.
+fn plain_segment(value: &str, label: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value == "."
+        || value == ".."
+        || value.contains(['/', '\\'])
+        || value.contains('\0')
+    {
+        return Err(format!("Invalid session {label}"));
+    }
+    Ok(())
+}
+
 pub fn session_file(dir_name: &str, file: &str) -> Result<Value, String> {
-    let path = sessions_dir()
+    plain_segment(dir_name, "directory")?;
+    plain_segment(file, "file")?;
+    if !file.ends_with(".jsonl") {
+        return Err("Only Pi session files can be read".to_string());
+    }
+
+    let root = sessions_dir()
         .ok_or_else(|| "Could not resolve Pi sessions directory".to_string())?
+        .canonicalize()
+        .map_err(|err| format!("Could not resolve Pi sessions directory: {err}"))?;
+    let path = root
         .join(dir_name)
-        .join(file);
+        .join(file)
+        .canonicalize()
+        .map_err(|err| format!("Could not resolve session file: {err}"))?;
+    // Canonicalize resolves symlinks too, so a link planted inside the sessions
+    // directory cannot point the reader somewhere else.
+    if !path.starts_with(&root) {
+        audit::denied(
+            "session.read",
+            "path escapes the Pi sessions directory",
+            json!({ "dirName": dir_name, "file": file }),
+        );
+        return Err("Session file is outside the Pi sessions directory".to_string());
+    }
 
     let reader = BufReader::new(fs::File::open(path).map_err(|err| err.to_string())?);
     let entries: Vec<Value> = reader
@@ -74,9 +113,54 @@ pub fn session_file(dir_name: &str, file: &str) -> Result<Value, String> {
     Ok(json!({ "entries": entries }))
 }
 
+/// Resolve a caller-supplied session path and prove it is a Pi session file
+/// inside the Pi sessions directory. Both deletion entry points go through this
+/// so a crafted `filePath` cannot reach arbitrary files on disk.
+fn resolve_session_path(file_path: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(file_path)
+        .canonicalize()
+        .map_err(|err| format!("Could not resolve session file: {err}"))?;
+    let root = sessions_dir()
+        .ok_or_else(|| "Could not resolve Pi sessions directory".to_string())?
+        .canonicalize()
+        .map_err(|err| format!("Could not resolve Pi sessions directory: {err}"))?;
+    if !path.starts_with(&root) || path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+        return Err("Session file is outside the Pi sessions directory".to_string());
+    }
+    if !path.is_file() {
+        return Err("Session file is not a regular file".to_string());
+    }
+    Ok(path)
+}
+
 pub fn delete_session(file_path: &str) -> Result<Value, String> {
-    fs::remove_file(file_path).map_err(|err| err.to_string())?;
+    let path = match resolve_session_path(file_path) {
+        Ok(path) => path,
+        Err(error) => {
+            audit::denied("session.delete", &error, json!({ "filePath": file_path }));
+            return Err(error);
+        }
+    };
+    fs::remove_file(&path).map_err(|err| {
+        let error = err.to_string();
+        audit::denied(
+            "session.delete",
+            &error,
+            json!({ "filePath": path.display().to_string() }),
+        );
+        error
+    })?;
+    audit::ok(
+        "session.delete",
+        json!({ "filePath": path.display().to_string() }),
+    );
     Ok(json!({ "ok": true }))
+}
+
+/// Length plus modification time — enough to notice a concurrent Pi append.
+fn file_fingerprint(path: &Path) -> Result<(u64, Option<std::time::SystemTime>), String> {
+    let metadata = fs::metadata(path).map_err(|err| err.to_string())?;
+    Ok((metadata.len(), metadata.modified().ok()))
 }
 
 pub fn delete_session_entry(
@@ -88,17 +172,13 @@ pub fn delete_session_entry(
     if entry_id.is_empty() {
         return Err("Missing session entry id".to_string());
     }
-    let path = PathBuf::from(file_path)
-        .canonicalize()
-        .map_err(|err| format!("Could not resolve session file: {err}"))?;
-    let root = sessions_dir()
-        .ok_or_else(|| "Could not resolve Pi sessions directory".to_string())?
-        .canonicalize()
-        .map_err(|err| format!("Could not resolve Pi sessions directory: {err}"))?;
-    if !path.starts_with(&root) || path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
-        return Err("Session file is outside the Pi sessions directory".to_string());
-    }
+    let path = resolve_session_path(file_path)?;
 
+    // Pi appends to this same JSONL while the GUI rewrites it. There is no
+    // cross-process lock available here, so treat the rewrite as a
+    // compare-and-swap: if the file changed between the read and the rename,
+    // abandon the write rather than silently dropping Pi's new entries.
+    let before = file_fingerprint(&path)?;
     let raw = fs::read_to_string(&path).map_err(|err| err.to_string())?;
     let mut entries = raw
         .lines()
@@ -116,14 +196,126 @@ pub fn delete_session_entry(
         output.push_str(&serde_json::to_string(entry).map_err(|err| err.to_string())?);
         output.push('\n');
     }
-    let temp_path = path.with_extension("jsonl.tmp");
+    let temp_path = path.with_extension(format!("jsonl.{}.tmp", std::process::id()));
     fs::write(&temp_path, output).map_err(|err| err.to_string())?;
+    if file_fingerprint(&path)? != before {
+        let _ = fs::remove_file(&temp_path);
+        audit::denied(
+            "session.delete_entry",
+            "session file changed during rewrite",
+            json!({ "filePath": path.display().to_string(), "entryId": entry_id }),
+        );
+        return Err("会话文件在编辑期间被 Pi 修改，请刷新后重试。".to_string());
+    }
     fs::rename(&temp_path, &path).map_err(|err| {
         let _ = fs::remove_file(&temp_path);
         err.to_string()
     })?;
 
+    audit::ok(
+        "session.delete_entry",
+        json!({
+            "filePath": path.display().to_string(),
+            "entryId": entry_id,
+            "includeDescendants": include_descendants,
+        }),
+    );
     Ok(json!({ "ok": true, "entries": entries }))
+}
+
+/// Copy a session into a new one, optionally cutting it off after `entry_id`.
+///
+/// Branching a conversation is otherwise impossible in the GUI: the only way
+/// to explore a different direction from the middle of a session was to delete
+/// the tail, which destroys the original. The new id and timestamp are minted
+/// by the caller (the webview has `crypto.randomUUID`), and validated here so
+/// they can be used to build a file name.
+pub fn fork_session(
+    file_path: &str,
+    entry_id: Option<&str>,
+    new_id: &str,
+    timestamp: &str,
+) -> Result<Value, String> {
+    let source = resolve_session_path(file_path)?;
+    if !is_uuid_like(new_id) {
+        return Err("Invalid session id".to_string());
+    }
+    if !is_iso_timestamp(timestamp) {
+        return Err("Invalid session timestamp".to_string());
+    }
+
+    let raw = fs::read_to_string(&source).map_err(|err| err.to_string())?;
+    let mut entries = raw
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str::<Value>(line).map_err(|err| err.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if let Some(cut) = entry_id.map(str::trim).filter(|id| !id.is_empty()) {
+        let position = entries
+            .iter()
+            .position(|entry| entry.get("id").and_then(Value::as_str) == Some(cut))
+            .ok_or_else(|| "Session entry not found".to_string())?;
+        entries.truncate(position + 1);
+    }
+
+    // The copy is a new session: it must not reuse the original's identity, or
+    // Pi and the sidebar will treat the two files as the same conversation.
+    for entry in &mut entries {
+        if entry.get("type").and_then(Value::as_str) != Some("session") {
+            continue;
+        }
+        if let Some(object) = entry.as_object_mut() {
+            object.insert("id".into(), Value::String(new_id.to_string()));
+            object.insert("timestamp".into(), Value::String(timestamp.to_string()));
+        }
+    }
+
+    let file_stamp = timestamp.replace([':', '.'], "-");
+    let target = source
+        .parent()
+        .ok_or_else(|| "Could not resolve session directory".to_string())?
+        .join(format!("{file_stamp}_{new_id}.jsonl"));
+    if target.exists() {
+        return Err("Session file already exists".to_string());
+    }
+
+    let mut output = String::new();
+    for entry in &entries {
+        output.push_str(&serde_json::to_string(entry).map_err(|err| err.to_string())?);
+        output.push('\n');
+    }
+    fs::write(&target, output).map_err(|err| err.to_string())?;
+    audit::ok(
+        "session.fork",
+        json!({
+            "source": source.display().to_string(),
+            "target": target.display().to_string(),
+            "entryId": entry_id.unwrap_or_default(),
+        }),
+    );
+
+    Ok(json!({
+        "ok": true,
+        "filePath": target.display().to_string(),
+        "id": new_id,
+        "entries": entries,
+    }))
+}
+
+fn is_uuid_like(value: &str) -> bool {
+    value.len() == 36
+        && value
+            .chars()
+            .all(|character| character.is_ascii_hexdigit() || character == '-')
+}
+
+fn is_iso_timestamp(value: &str) -> bool {
+    value.len() == 24
+        && value.ends_with('Z')
+        && value
+            .chars()
+            .all(|character| character.is_ascii_digit() || "-:.TZ".contains(character))
 }
 
 fn remove_message_entry(
@@ -721,5 +913,50 @@ mod tests {
 
         assert_eq!(result.len(), 3);
         assert_eq!(result.last().and_then(|entry| entry["id"].as_str()), Some("reply"));
+    }
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::*;
+
+    #[test]
+    fn fork_identifiers_must_look_like_pi_session_ids() {
+        assert!(is_uuid_like("019f473a-f5ca-751a-8476-bfd89ee983e8"));
+        assert!(!is_uuid_like("../../etc/passwd"));
+        assert!(!is_uuid_like("short"));
+        assert!(is_iso_timestamp("2026-09-02T03:33:12.000Z"));
+        assert!(!is_iso_timestamp("2026-09-02T03:33:12.000Z/../x"));
+        assert!(!is_iso_timestamp("not-a-timestamp"));
+    }
+
+    #[test]
+    fn session_reads_reject_traversal_segments() {
+        for (dir, file) in [
+            ("..", "session.jsonl"),
+            ("project", "../../../etc/hosts.jsonl"),
+            ("project", r"..\..\secrets.jsonl"),
+            ("project", "notes.txt"),
+        ] {
+            assert!(
+                session_file(dir, file).is_err(),
+                "{dir}/{file} must not be readable"
+            );
+        }
+    }
+
+    #[test]
+    fn deleting_a_file_outside_the_sessions_directory_is_rejected() {
+        let dir = std::env::temp_dir().join("picode-session-guard-test");
+        let _ = fs::create_dir_all(&dir);
+        let outside = dir.join("victim.jsonl");
+        fs::write(&outside, "{}\n").expect("fixture is writable");
+
+        let error = delete_session(&outside.display().to_string())
+            .expect_err("paths outside the sessions directory must be refused");
+        assert!(error.contains("outside") || error.contains("resolve"), "{error}");
+        assert!(outside.exists(), "the file must survive a rejected delete");
+
+        let _ = fs::remove_file(&outside);
     }
 }

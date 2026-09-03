@@ -1,4 +1,5 @@
 pub mod api;
+pub mod automations;
 pub mod desktop;
 pub mod extensions;
 pub mod files;
@@ -8,3 +9,4 @@ pub mod packages;
 pub mod prompts;
 pub mod sessions;
 pub mod sidecar;
+pub mod worktrees;

@@ -1,155 +1,59 @@
 # PiCode
 
-PiCode is a Tauri desktop client for Pi. Its web UI is built with reference to [`deflating/tau`](https://github.com/deflating/tau), then adapted into a desktop app that starts a bundled Pi RPC process in the background, browses local Pi sessions, continues selected sessions, and installs Pi extensions and packages without requiring users to open a terminal.
+**跨平台的 AI 编程 Agent 指挥台 —— 任意模型、隔离并行、先审后落地。**
 
-中文文档: [README.zh-CN.md](README.zh-CN.md)
+PiCode is a desktop workbench for [Pi](https://github.com/earendil-works/pi-coding-agent).
+It is not "Pi with a window around it": it is where you decide which model does
+which job, run several tasks at once without them colliding, and review every
+change before it lands.
 
-## What It Does
+中文文档: [README.zh-CN.md](README.zh-CN.md) · 构建与打包: [CONTRIBUTING.md](CONTRIBUTING.md)
 
-- Starts Pi automatically from the desktop app.
-- Provides a desktop UI based on ideas and implementation patterns from Tau.
-- Uses native Pi RPC over the bundled child process by default, without a local mirror WebSocket server.
-- Uses the build machine's installed `pi` as the release packaging source.
-- Bundles platform-specific Node runtime and Pi npm package under `src-tauri/binaries/<platform>/`.
-- Resolves Pi in this order: `PI_DESKTOP_CLI`, bundled Pi, then system `pi` on `PATH`.
-- Supports project mode and no-folder mode.
-- Reads local sessions from `~/.pi/agent/sessions`.
-- Allows selecting a session in the sidebar and continuing chat in that session.
-- Shows Pi runtime information, including the current Pi version, in Settings.
-- Lists Pi extension examples and installs selected extensions into `~/.pi/agent/extensions`.
-- Runs on Windows, macOS, and Linux with the same bundled runtime mechanism.
+## Why PiCode
 
-## Requirements
+**Any model, routed by task.** `models.json` accepts any OpenAI-compatible,
+Anthropic or Google endpoint, and Settings → 模型 lets you send planning,
+coding and search to *different* models. A single-vendor client cannot do this.
 
-- Node.js 20+.
-- pnpm 10+ (Corepack is recommended).
-- Rust stable toolchain.
-- Tauri v2 prerequisites for your platform.
-- A working local Pi install on the build machine:
+**Isolated, parallel work.** Start a session against a detached git worktree
+instead of your working tree. Two tasks on one repository stop fighting over
+the same files, and each isolated copy runs its own Pi process — so they run at
+the same time and you switch between them from the sidebar.
 
-```bash
-pi --version
-```
+**Review before it lands.** `⌘⇧G` opens a full-width review panel: coloured
+diffs with line numbers, four comparison scopes (unstaged / staged / since
+HEAD / since a base branch / since this turn started), hunk-level stage and
+revert, and per-line notes that you hand back to Pi as one instruction.
 
-The final installed app does not require the end user to start `pi` manually.
+**The same app on Windows, macOS and Linux.** One bundled runtime mechanism,
+one feature set, no second-class platform.
 
-## Development
+## What you get
 
-Install dependencies:
+- **Plan → Review → Build**: a genuinely read-only planning mode, enforced by a
+  bundled extension, then step-by-step execution you can watch.
+- **Permission control you can trust**: ask / read-only / full-access, with
+  "allow for this session" scoped to *one session and one command family* —
+  and every decision written to an audit log you can open from Settings.
+- **Session management**: browse local Pi sessions, continue any of them, fork a
+  conversation from any message, rewind, regenerate, or delete a message and its
+  descendants.
+- **`@` file mentions** that send the file's *contents*, not its path.
+- **Cost and usage**, broken down per model and exportable as CSV.
+- **`AGENTS.md` as a first-class artifact**, editable in-app.
+- **Automations**: scheduled prompts that run on their own and land in your
+  session history.
 
-```bash
-pnpm install
-npm install --omit=dev --prefix ./src-tauri/extensions
-```
+## Getting started
 
-Start the app in development:
+Install the app, open a project, and answer the three questions the first-run
+guide asks: which model, how much authority Pi has, and whether it edits your
+working tree or an isolated copy. Everything else is discoverable from `⌘K`
+(command palette) and `⌘/` (all keyboard shortcuts).
 
-```bash
-pnpm tauri:dev
-```
-
-If Vite is already running on `127.0.0.1:1420`, reuse it:
-
-```bash
-pnpm tauri:dev:reuse
-```
-
-Useful frontend commands:
-
-```bash
-pnpm build
-pnpm preview
-pnpm typecheck
-pnpm test
-```
-
-The frontend is a React 19 + TypeScript application built by Vite. `src/app`
-contains the typed application controller/store, `src/components` contains the
-workbench views, and `src/lib` owns the Tauri/API/transport contracts. pnpm is
-the only package manager for the root frontend; the bundled legacy mirror
-extension keeps its isolated npm install because Pi loads that resource as a
-standalone package.
-
-Useful backend check:
-
-```bash
-cargo check --manifest-path ./src-tauri/Cargo.toml
-```
-
-## Pi Runtime Packaging
-
-Release builds vendor the build machine's installed `pi` runtime into Tauri resources. PiCode then launches the bundled Pi process in the background.
-
-Platform resource directories:
-
-- `src-tauri/binaries/windows-x64/`
-- `src-tauri/binaries/macos-x64/`
-- `src-tauri/binaries/macos-arm64/`
-- `src-tauri/binaries/linux-x64/`
-
-Each platform directory contains:
-
-- `node` or `node.exe`
-- `pi-package/`
-- a small `pi` wrapper for manual debugging
-
-Windows:
-
-```powershell
-.\scripts\vendor-pi-sidecar-windows.ps1
-```
-
-macOS/Linux:
-
-```bash
-./scripts/vendor-pi-sidecar-unix.sh
-```
-
-If auto-detection cannot find the right Node or Pi package on macOS/Linux, override them explicitly:
-
-```bash
-NODE_BIN="$(command -v node)" PI_PACKAGE="$(npm root -g)/@earendil-works/pi-coding-agent" ./scripts/vendor-pi-sidecar-unix.sh
-```
-
-Development override:
-
-```bash
-PI_DESKTOP_CLI=/path/to/pi pnpm tauri:dev
-```
-
-Legacy mirror/WebSocket transport is still available for compatibility:
-
-```bash
-PI_DESKTOP_TRANSPORT=mirror pnpm tauri:dev
-```
-
-## Release Builds
-
-Windows:
-
-```powershell
-.\scripts\build-release.ps1 -Debug
-```
-
-With smoke test:
-
-```powershell
-.\scripts\build-release.ps1 -Smoke -Debug
-```
-
-macOS/Linux:
-
-```bash
-./scripts/build-release.sh --debug
-```
-
-Manual debug build:
-
-```bash
-pnpm exec tauri build --debug
-```
-
-Generated installers use the `PiCode` product name. On Windows, if `target/debug/PiCode.exe` is currently running, close the app before rebuilding because Windows will not overwrite a running executable.
+Requirements for *running* a release build: none beyond the installer — the Pi
+runtime is bundled. Requirements for *building from source* are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Sessions
 
@@ -163,71 +67,7 @@ The sidebar groups sessions by project folder. Selecting a session loads the und
 
 No-folder mode uses an app-owned directory and is useful when the user wants to chat without selecting a project folder.
 
-## Extensions
-
-The Extensions page reads Pi extension examples from:
-
-1. the installed system Pi package
-2. the bundled Pi package under `src-tauri/binaries/<platform>/pi-package/examples/extensions`
-
-Installed extensions are copied into:
-
-```text
-~/.pi/agent/extensions
-```
-
-Directory extensions with `package.json` run:
-
-```bash
-npm install --omit=dev
-```
-
-New Pi sessions pick up installed extensions, so restart Pi or open a new project session after installing an extension.
-
-## Verification
-
-Recommended checks:
-
-```powershell
-pnpm build
-cargo check --manifest-path .\src-tauri\Cargo.toml
-.\scripts\smoke-pi-tau.ps1 -ProjectPath D:\myproduction\PiCode -Port 3991 -TimeoutSeconds 45
-pnpm exec tauri build --debug
-```
-
-The smoke script checks native Pi RPC by default. Add `-Mirror` to run the legacy Tau mirror health check as well.
-
-macOS/Linux should run the equivalent build script on the target platform:
-
-```bash
-./scripts/build-release.sh --debug
-```
-
-## Troubleshooting
-
-If Pi does not start:
-
-- Confirm `pi --version` works on the build machine.
-- Re-run the vendor script for your platform.
-- Check app logs under the platform config directory, for example `pi-studio/logs` (the legacy directory is retained so existing settings continue to work).
-- In development, set `PI_DESKTOP_CLI` to a known working Pi executable.
-
-If sessions do not appear:
-
-- Confirm files exist under `~/.pi/agent/sessions`.
-- Click the session refresh button.
-- Start or restart Pi from PiCode so the native RPC session can refresh live state.
-
-If Windows debug build cannot overwrite `PiCode.exe`:
-
-- Close the running PiCode window.
-- Check Task Manager for `PiCode.exe`.
-- Run `pnpm exec tauri build --debug` again.
-
-## Notes
-
-PiCode is not presented as the Tau project itself. It references and adapts Tau's browser UI for a standalone desktop experience, while the desktop app talks to Pi through native RPC by default. The public desktop product name is `PiCode`.
-
 ## Attribution
 
 This project references [`deflating/tau`](https://github.com/deflating/tau) for the browser-based Pi UI and mirror workflow. Upstream Tau remains a separate project; PiCode adapts those ideas into a Tauri desktop client with bundled Pi startup, native RPC transport, local session management, and extension installation.
+

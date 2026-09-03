@@ -1,12 +1,39 @@
-import { isValidElement, useState, type ReactElement, type ReactNode } from 'react';
+import { isValidElement, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import hljs from './highlight';
 import { Icon } from './Icon';
+
+/** Above this size, highlighting costs more than it is worth on every render. */
+const MAX_HIGHLIGHT_CHARS = 100_000;
+
+/**
+ * Highlight `code` and return HTML, or null when we cannot do it safely.
+ *
+ * highlight.js escapes the source it emits, which is what makes the
+ * `dangerouslySetInnerHTML` below safe: model output never reaches the DOM as
+ * live markup. Any failure falls back to the plain text node.
+ */
+function highlight(code: string, language: string): string | null {
+  if (!code || code.length > MAX_HIGHLIGHT_CHARS) return null;
+  try {
+    const normalized = language.trim().toLowerCase();
+    if (normalized && hljs.getLanguage(normalized)) {
+      return hljs.highlight(code, { language: normalized, ignoreIllegals: true }).value;
+    }
+    // Auto-detection is only worth it once there is enough text to judge.
+    if (!normalized && code.length > 40) return hljs.highlightAuto(code).value;
+  } catch {
+    // Fall through to the unhighlighted rendering.
+  }
+  return null;
+}
 
 function CodeBlock({ code, language }: { code: string; language: string }) {
   const [copied, setCopied] = useState(false);
+  const highlighted = useMemo(() => highlight(code, language), [code, language]);
   const copy = async () => {
     await navigator.clipboard.writeText(code);
     setCopied(true);
@@ -21,7 +48,11 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         </button>
       </div>
       <pre>
-        <code>{code}</code>
+        {highlighted === null ? (
+          <code>{code}</code>
+        ) : (
+          <code className="hljs" dangerouslySetInnerHTML={{ __html: highlighted }} />
+        )}
       </pre>
     </div>
   );

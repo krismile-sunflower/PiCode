@@ -4,6 +4,7 @@ export type IconName =
   | 'arrow-left'
   | 'arrow-down'
   | 'bars'
+  | 'branch'
   | 'brain'
   | 'chart'
   | 'changes'
@@ -34,6 +35,14 @@ const paths: Record<IconName, React.ReactNode> = {
   'arrow-left': <path d="m15 18-6-6 6-6" />,
   'arrow-down': <path d="M12 5v14m7-7-7 7-7-7" />,
   bars: <path d="M4 6h16M4 12h16M4 18h16" />,
+  branch: (
+    <>
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="9" r="2" />
+      <path d="M6 7v10M8 9h4a4 4 0 0 1 4 4v2" />
+    </>
+  ),
   brain: (
     <>
       <path d="M12 5a3 3 0 1 0-6 .1 4 4 0 0 0-2.5 5.8 4 4 0 0 0 .5 6.6A4 4 0 1 0 12 18Z" />

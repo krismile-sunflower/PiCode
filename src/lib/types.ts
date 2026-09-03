@@ -120,6 +120,26 @@ export interface RenderedMessage {
   usage?: Usage;
   streaming?: boolean;
   history?: boolean;
+  /** Model in effect when this message was produced, for cost attribution. */
+  model?: string;
+  /**
+   * Marks the new-session starter card.
+   *
+   * This used to be a sentinel string in `content`, which meant any real
+   * message could impersonate it and every check had to compare magic text.
+   */
+  welcome?: boolean;
+}
+
+/** One row of the per-model usage breakdown. */
+export interface ModelUsageRow {
+  model: string;
+  messages: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
 }
 
 export interface ToolExecution {
@@ -173,6 +193,30 @@ export interface SessionSearchResult {
   sessionTimestamp?: string | number;
   project?: string;
   matches: Array<{ snippet?: string }>;
+}
+
+/** A scheduled prompt that runs without anyone at the keyboard. */
+export interface Automation {
+  id: string;
+  name: string;
+  prompt: string;
+  projectPath: string;
+  kind: 'interval' | 'daily';
+  minutes: number;
+  time: string;
+  enabled: boolean;
+  lastRunAt: number;
+  lastStatus: string;
+}
+
+/** A managed git worktree used to isolate one agent session. */
+export interface WorktreeInfo {
+  path: string;
+  name: string;
+  head: string;
+  branch?: string | null;
+  hasChanges: boolean;
+  belongsToProject: boolean;
 }
 
 export interface ProjectInfo {
@@ -306,12 +350,34 @@ export interface FileContent {
   unsupportedReason?: string;
 }
 
+/** Task roles a model can be routed to. */
+export type ModelRole = 'plan' | 'build' | 'search';
+
+export interface ModelRoute {
+  provider: string;
+  modelId: string;
+}
+
 export interface DesktopSettings {
   tauPort?: number;
   /** Tool permission policy enforced by the bundled Pi extension. */
   permissionMode?: 'ask' | 'read-only' | 'full-access' | string;
   trustedProjectPaths?: string[];
+  /** Per-task-type model routing, e.g. plan with one model and build with another. */
+  modelRoutes?: Partial<Record<ModelRole, ModelRoute>>;
+  updateEndpoint?: string;
   [key: string]: unknown;
+}
+
+/** Result of a host-app update check. */
+export interface AppUpdateInfo {
+  configured: boolean;
+  available: boolean;
+  currentVersion: string;
+  newVersion?: string | null;
+  notes?: string | null;
+  endpoint?: string | null;
+  error?: string | null;
 }
 
 export interface GitChange {
@@ -332,6 +398,22 @@ export interface GitStatus {
 }
 
 export type GitChangeArea = 'staged' | 'unstaged';
+
+/**
+ * What a diff is measured against in the review panel: the index/worktree
+ * split, everything since the last commit, since a base branch, or since the
+ * snapshot taken when the current agent turn started.
+ */
+export type GitReviewScope = 'staged' | 'unstaged' | 'head' | 'base' | 'turn';
+
+export interface ReviewComment {
+  id: string;
+  path: string;
+  line: number;
+  side: 'old' | 'new';
+  text: string;
+  code: string;
+}
 
 export interface GitFileDiff {
   path: string;
@@ -528,7 +610,7 @@ export interface AppSnapshot {
   contextUsage?: ContextUsage;
   lastUsage: Usage | null;
   sessionTotalCost: number;
-  queue: Array<{ id: string; message: string; images?: ImageAttachment[] }>;
+  queue: Array<{ id: string; message: string; images?: ImageAttachment[]; queuedAt?: number }>;
   slashCommands: SlashCommand[];
   modelsConfig: ModelsConfig | null;
   modelsConfigPath: string;
@@ -569,6 +651,16 @@ export interface AppSnapshot {
   selectedGitPath: string | null;
   selectedGitArea: GitChangeArea | null;
   gitDiff: GitFileDiff | null;
+  gitReviewScope: GitReviewScope;
+  gitBaseRef: string;
+  gitBranches: string[];
+  /** Dangling commit captured when the current agent turn started, if any. */
+  gitTurnBaseline: string;
+  reviewComments: ReviewComment[];
+  worktrees: WorktreeInfo[];
+  automations: Automation[];
+  appUpdate: AppUpdateInfo | null;
+  appUpdateChecking: boolean;
   gitDiffLoading: boolean;
   extensionUiRequest: ExtensionUiRequest | null;
 }

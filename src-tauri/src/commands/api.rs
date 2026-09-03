@@ -9,7 +9,8 @@ use crate::commands::files::{
     canonical_workspace_path, list_files_inner, open_in_vscode, open_path, read_file_content,
 };
 use crate::commands::sessions::{
-    delete_session, delete_session_entry, empty_sessions, live_tau_instances, search_sessions,
+    delete_session, delete_session_entry, empty_sessions, fork_session, live_tau_instances,
+    search_sessions,
     session_file,
 };
 use crate::commands::sidecar::{
@@ -384,6 +385,31 @@ async fn local_response(
                 .and_then(|value| value.as_str())
                 .ok_or_else(|| "Missing session file path".to_string())?;
             delete_session(file_path)?
+        }
+        ("POST", "/api/sessions/fork") => {
+            let body = request
+                .body
+                .as_deref()
+                .and_then(|body| serde_json::from_str::<serde_json::Value>(body).ok())
+                .unwrap_or_default();
+            let file_path = body
+                .get("filePath")
+                .and_then(|value| value.as_str())
+                .ok_or_else(|| "Missing session file path".to_string())?;
+            let new_id = body
+                .get("newId")
+                .and_then(|value| value.as_str())
+                .ok_or_else(|| "Missing new session id".to_string())?;
+            let timestamp = body
+                .get("timestamp")
+                .and_then(|value| value.as_str())
+                .ok_or_else(|| "Missing new session timestamp".to_string())?;
+            fork_session(
+                file_path,
+                body.get("entryId").and_then(|value| value.as_str()),
+                new_id,
+                timestamp,
+            )?
         }
         ("POST", "/api/sessions/entry/delete") => {
             let body = request

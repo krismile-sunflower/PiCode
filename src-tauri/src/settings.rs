@@ -32,6 +32,9 @@ pub struct DesktopSettings {
     pub permission_mode: String,
     #[serde(default)]
     pub trusted_project_paths: Vec<String>,
+    /// Release feed for host-app updates. Empty means updates are not configured.
+    #[serde(default)]
+    pub update_endpoint: Option<String>,
 }
 
 impl Default for DesktopSettings {
@@ -45,6 +48,7 @@ impl Default for DesktopSettings {
             autostart: false,
             permission_mode: default_permission_mode(),
             trusted_project_paths: Vec::new(),
+            update_endpoint: None,
         }
     }
 }
@@ -264,6 +268,80 @@ pub fn remove_runtime_instance(pid: u32) {
     }
 }
 
+/// Startup log ceiling. Beyond this the file is rotated to `.1`, so a
+/// long-lived install cannot grow an unbounded log next to the config.
+const MAX_LOG_BYTES: u64 = 2 * 1024 * 1024;
+
+/// Scheduled prompts live beside the desktop settings, not inside them, so a
+/// malformed automation file can never take the app's own configuration down
+/// with it.
+pub fn load_automations() -> Vec<crate::commands::automations::Automation> {
+    let Some(path) = config_read_path("automations.json") else {
+        return Vec::new();
+    };
+    let Ok(raw) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
+pub fn save_automations(
+    automations: &[crate::commands::automations::Automation],
+) -> Result<(), String> {
+    let path = config_path("automations.json")
+        .ok_or_else(|| "Could not resolve config directory".to_string())?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+    let raw = serde_json::to_string_pretty(automations).map_err(|err| err.to_string())?;
+    let temp = path.with_extension("json.tmp");
+    fs::write(&temp, raw).map_err(|err| err.to_string())?;
+    fs::rename(&temp, &path).map_err(|err| {
+        let _ = fs::remove_file(&temp);
+        err.to_string()
+    })
+}
+
+/// Local time offset from UTC in minutes.
+///
+/// Only the daily automation schedule needs this, and pulling in a full
+/// date-time dependency for one offset is not worth it: ask the platform once
+/// and fall back to UTC when it cannot answer.
+pub fn local_utc_offset_minutes() -> i32 {
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        let output = Command::new("cmd")
+            .args(["/C", "powershell -NoProfile -Command \"[int](Get-Date -UFormat %Z)\""])
+            .output();
+        if let Ok(output) = output {
+            if let Ok(text) = String::from_utf8(output.stdout) {
+                if let Ok(hours) = text.trim().parse::<i32>() {
+                    return hours * 60;
+                }
+            }
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::process::Command;
+        if let Ok(output) = Command::new("date").arg("+%z").output() {
+            if let Ok(text) = String::from_utf8(output.stdout) {
+                let text = text.trim();
+                if text.len() == 5 {
+                    if let (Ok(hours), Ok(minutes)) =
+                        (text[1..3].parse::<i32>(), text[3..5].parse::<i32>())
+                    {
+                        let magnitude = hours * 60 + minutes;
+                        return if text.starts_with('-') { -magnitude } else { magnitude };
+                    }
+                }
+            }
+        }
+    }
+    0
+}
+
 pub fn append_desktop_log(message: impl AsRef<str>) {
     let Some(dir) = dirs::config_dir().map(|dir| dir.join(APP_CONFIG_DIR).join("logs")) else {
         return;
@@ -271,11 +349,11 @@ pub fn append_desktop_log(message: impl AsRef<str>) {
     if fs::create_dir_all(&dir).is_err() {
         return;
     }
-    let Ok(mut file) = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(dir.join("desktop-startup.log"))
-    else {
+    let path = dir.join("desktop-startup.log");
+    if fs::metadata(&path).map(|meta| meta.len() >= MAX_LOG_BYTES).unwrap_or(false) {
+        let _ = fs::rename(&path, path.with_extension("log.1"));
+    }
+    let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) else {
         return;
     };
     let now = std::time::SystemTime::now()

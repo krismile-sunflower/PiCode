@@ -1,8 +1,13 @@
 import { createRoot } from 'react-dom/client';
 import './tailwind.css';
 import { App } from './app/App';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
 
-createRoot(root).render(<App />);
+createRoot(root).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>,
+);

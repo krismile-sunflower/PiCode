@@ -48,6 +48,230 @@ pub struct FileContentResponse {
     pub reason: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectInstructions {
+    pub path: String,
+    pub exists: bool,
+    pub content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteProjectInstructionsRequest {
+    pub path: String,
+    pub content: String,
+}
+
+/// Cap on the project instruction file, which is prepended to every turn.
+const INSTRUCTIONS_LIMIT: u64 = 256 * 1024;
+
+fn instructions_path(project: &str) -> Result<PathBuf, String> {
+    let root = PathBuf::from(project)
+        .canonicalize()
+        .map_err(|err| format!("无法访问工作区：{err}"))?;
+    if !root.is_dir() {
+        return Err("工作区路径不是目录。".to_string());
+    }
+    Ok(root.join("AGENTS.md"))
+}
+
+/// Read the project's `AGENTS.md`.
+///
+/// This is project-level instruction, not a user-level prompt template: the
+/// two were previously conflated under the prompts UI even though only one of
+/// them travels with the repository.
+#[tauri::command]
+pub async fn read_project_instructions(path: String) -> Result<ProjectInstructions, String> {
+    tokio::task::spawn_blocking(move || {
+        let file = instructions_path(&path)?;
+        if !file.exists() {
+            return Ok(ProjectInstructions {
+                path: file.display().to_string(),
+                exists: false,
+                content: String::new(),
+            });
+        }
+        let metadata = fs::metadata(&file).map_err(|err| err.to_string())?;
+        if metadata.len() > INSTRUCTIONS_LIMIT {
+            return Err("AGENTS.md 过大，请在编辑器中处理。".to_string());
+        }
+        Ok(ProjectInstructions {
+            path: file.display().to_string(),
+            exists: true,
+            content: fs::read_to_string(&file).map_err(|err| err.to_string())?,
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub async fn write_project_instructions(
+    request: WriteProjectInstructionsRequest,
+) -> Result<ProjectInstructions, String> {
+    tokio::task::spawn_blocking(move || {
+        let file = instructions_path(&request.path)?;
+        if request.content.len() as u64 > INSTRUCTIONS_LIMIT {
+            return Err("AGENTS.md 过大，请精简后再保存。".to_string());
+        }
+        // Atomic replace so a failed write cannot leave the repo with a
+        // half-written instruction file that Pi would still load.
+        let temp = file.with_extension("md.tmp");
+        fs::write(&temp, &request.content).map_err(|err| err.to_string())?;
+        fs::rename(&temp, &file).map_err(|err| {
+            let _ = fs::remove_file(&temp);
+            err.to_string()
+        })?;
+        crate::audit::ok(
+            "project.instructions_saved",
+            serde_json::json!({ "path": file.display().to_string(), "bytes": request.content.len() }),
+        );
+        Ok(ProjectInstructions {
+            path: file.display().to_string(),
+            exists: true,
+            content: request.content,
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchFilesRequest {
+    pub path: String,
+    pub query: String,
+    pub limit: Option<usize>,
+}
+
+/// Directories that are never worth walking for an `@` mention.
+const SEARCH_IGNORED: &[&str] = &[
+    "node_modules",
+    ".git",
+    "target",
+    "dist",
+    "build",
+    "out",
+    ".next",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".upstream-tau",
+    "coverage",
+    ".turbo",
+];
+
+/// Bound on how much of the tree a single mention lookup may walk.
+const SEARCH_SCAN_LIMIT: usize = 20_000;
+
+/// Fuzzy-find workspace files for `@` mentions in the composer.
+///
+/// Ranks by subsequence match with a bias toward matches in the file name, so
+/// typing `@ctrl` finds `src/app/controller.ts` before a directory that merely
+/// contains those letters somewhere in its path.
+#[tauri::command]
+pub async fn search_project_files(
+    request: SearchFilesRequest,
+) -> Result<Vec<FileItem>, String> {
+    tokio::task::spawn_blocking(move || {
+        let root = PathBuf::from(&request.path)
+            .canonicalize()
+            .map_err(|err| format!("无法访问工作区：{err}"))?;
+        let query = request.query.trim().to_lowercase();
+        let limit = request.limit.unwrap_or(30).clamp(1, 200);
+
+        let mut scanned = 0usize;
+        let mut scored: Vec<(i64, FileItem)> = Vec::new();
+        let mut stack = vec![root.clone()];
+        while let Some(dir) = stack.pop() {
+            if scanned >= SEARCH_SCAN_LIMIT {
+                break;
+            }
+            let Ok(entries) = fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if SEARCH_IGNORED.contains(&name.as_str()) || name.starts_with('.') {
+                    continue;
+                }
+                let path = entry.path();
+                let Ok(metadata) = entry.metadata() else {
+                    continue;
+                };
+                if metadata.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                scanned += 1;
+                let relative = path
+                    .strip_prefix(&root)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                let Some(score) = fuzzy_score(&relative, &name, &query) else {
+                    continue;
+                };
+                scored.push((
+                    score,
+                    FileItem {
+                        name: relative.clone(),
+                        path: path.display().to_string(),
+                        is_directory: false,
+                        size: Some(metadata.len()),
+                        mtime: metadata
+                            .modified()
+                            .ok()
+                            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                            .map(|duration| duration.as_millis()),
+                    },
+                ));
+            }
+        }
+
+        scored.sort_by(|left, right| {
+            right
+                .0
+                .cmp(&left.0)
+                .then_with(|| left.1.name.len().cmp(&right.1.name.len()))
+        });
+        Ok(scored.into_iter().take(limit).map(|(_, item)| item).collect())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Higher is better; `None` means the query does not match at all.
+fn fuzzy_score(relative: &str, name: &str, query: &str) -> Option<i64> {
+    if query.is_empty() {
+        return Some(0);
+    }
+    let haystack = relative.to_lowercase();
+    let file_name = name.to_lowercase();
+    if let Some(index) = file_name.find(query) {
+        // Contiguous hit in the file name is the strongest signal.
+        return Some(1_000 - index as i64);
+    }
+    if let Some(index) = haystack.find(query) {
+        return Some(600 - index as i64);
+    }
+    // Fall back to a subsequence match over the whole relative path.
+    let mut characters = query.chars();
+    let mut needle = characters.next()?;
+    let mut matched = 0i64;
+    for character in haystack.chars() {
+        if character == needle {
+            matched += 1;
+            match characters.next() {
+                Some(next) => needle = next,
+                None => return Some(200 + matched),
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
 pub async fn list_files(request: ListFilesRequest) -> Result<FileListResponse, String> {
     list_files_inner(request.path.map(PathBuf::from))
@@ -321,6 +545,15 @@ mod tests {
             .expect("clock")
             .as_nanos();
         std::env::temp_dir().join(format!("pi-studio-{label}-{}-{nonce}", std::process::id()))
+    }
+
+    #[test]
+    fn fuzzy_scoring_prefers_file_name_matches() {
+        let name_hit = super::fuzzy_score("src/app/controller.ts", "controller.ts", "ctrl");
+        let path_hit = super::fuzzy_score("src/ctrl/other.ts", "other.ts", "ctrl");
+        assert!(name_hit.is_some() && path_hit.is_some());
+        assert!(path_hit.unwrap() > name_hit.unwrap(), "contiguous path hits outrank subsequences");
+        assert_eq!(super::fuzzy_score("a/b.ts", "b.ts", "zzz"), None);
     }
 
     #[test]

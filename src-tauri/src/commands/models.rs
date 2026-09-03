@@ -182,6 +182,18 @@ pub async fn save_models_config(
         })?;
     }
 
+    // Keep the last known-good copy: a bad edit here takes every provider and
+    // model with it, and there was no way back short of retyping the file.
+    if path.exists() {
+        let backup = path.with_extension("json.bak");
+        if let Err(error) = fs::copy(&path, &backup) {
+            crate::settings::append_desktop_log(format!(
+                "models.json backup failed ({}): {error}",
+                backup.display()
+            ));
+        }
+    }
+
     let pretty = serde_json::to_string_pretty(&config)
         .map_err(|err| format!("Failed to serialize models.json: {err}"))?;
     let temp_path = path.with_extension("json.tmp");
@@ -197,6 +209,36 @@ pub async fn save_models_config(
         format!("Failed to replace models.json at {}: {err}", path.display())
     })?;
 
+    Ok(ModelsConfigResponse {
+        path: path.display().to_string(),
+        exists: true,
+        config,
+    })
+}
+
+/// Restore `models.json` from the copy taken before the last save.
+#[tauri::command]
+pub async fn restore_models_config() -> Result<ModelsConfigResponse, String> {
+    let path = models_json_path()?;
+    let backup = path.with_extension("json.bak");
+    if !backup.exists() {
+        return Err("还没有可用的备份。".to_string());
+    }
+    let raw = fs::read_to_string(&backup).map_err(|err| err.to_string())?;
+    let config = serde_json::from_str::<Value>(&raw)
+        .map_err(|err| format!("备份文件无法解析：{err}"))?;
+    let config = normalize_and_validate_config(config)?;
+    let pretty = serde_json::to_string_pretty(&config).map_err(|err| err.to_string())?;
+    let temp_path = path.with_extension("json.tmp");
+    fs::write(&temp_path, format!("{pretty}\n")).map_err(|err| err.to_string())?;
+    fs::rename(&temp_path, &path).map_err(|err| {
+        let _ = fs::remove_file(&temp_path);
+        err.to_string()
+    })?;
+    crate::audit::ok(
+        "models.restore",
+        serde_json::json!({ "from": backup.display().to_string() }),
+    );
     Ok(ModelsConfigResponse {
         path: path.display().to_string(),
         exists: true,
@@ -232,6 +274,8 @@ pub async fn fetch_provider_models(
         let path = format!("{}/models", url.path().trim_end_matches('/'));
         url.set_path(&path);
     }
+
+    ensure_allowed_endpoint(&url)?;
 
     let api_key = resolve_api_key(provider.get("apiKey").and_then(Value::as_str))?;
     if api == "google-generative-ai" {
@@ -319,6 +363,7 @@ pub async fn test_provider_model(
         .map_err(|err| format!("无法创建请求客户端：{err}"))?;
     let prompt = "请只回复：连接成功";
     let mut url = Url::parse(base_url).map_err(|err| format!("Base URL 无效：{err}"))?;
+    ensure_allowed_endpoint(&url)?;
     let reasoning = resolve_reasoning_value(
         provider,
         request.reasoning_profile.as_deref(),
@@ -754,6 +799,43 @@ fn resolve_api_key(value: Option<&str>) -> Result<Option<String>, String> {
     Ok(Some(value.to_string()))
 }
 
+/// Reject provider endpoints that should never receive an outbound request.
+///
+/// `baseUrl` is free text a user (or an imported `models.json`) supplies, and
+/// the app attaches the provider API key to whatever it points at. Cloud
+/// metadata services answer plain unauthenticated HTTP on link-local
+/// addresses, so a hostile config could turn "fetch models" into credential
+/// theft plus an internal port scan. Localhost stays allowed — self-hosted
+/// runtimes like Ollama are a first-class use case.
+fn ensure_allowed_endpoint(url: &Url) -> Result<(), String> {
+    match url.scheme() {
+        "http" | "https" => {}
+        other => return Err(format!("不支持的 Base URL 协议：{other}")),
+    }
+    let host = url
+        .host_str()
+        .ok_or_else(|| "Base URL 缺少主机名。".to_string())?
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let is_loopback = host == "localhost"
+        || host == "::1"
+        || host.parse::<std::net::Ipv4Addr>().map(|ip| ip.is_loopback()).unwrap_or(false)
+        || host.parse::<std::net::Ipv6Addr>().map(|ip| ip.is_loopback()).unwrap_or(false);
+    if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
+        // 169.254.0.0/16 carries the AWS/Azure/GCP metadata endpoints.
+        if ip.is_link_local() {
+            return Err("Base URL 指向链路本地地址（如云元数据服务），已拒绝。".into());
+        }
+    }
+    if host == "metadata.google.internal" || host == "metadata" {
+        return Err("Base URL 指向云元数据服务，已拒绝。".into());
+    }
+    if url.scheme() == "http" && !is_loopback {
+        return Err("明文 HTTP 只允许指向本机；请改用 HTTPS，否则 API 密钥会以明文外发。".into());
+    }
+    Ok(())
+}
+
 fn append_path(url: &mut Url, suffix: &str) {
     let path = format!(
         "{}/{}",
@@ -1075,5 +1157,30 @@ mod tests {
             extract_openai_response(&json!({ "output_text": "连接成功" })),
             Some("连接成功".into())
         );
+    }
+}
+
+#[cfg(test)]
+mod endpoint_tests {
+    use super::ensure_allowed_endpoint;
+    use url::Url;
+
+    fn check(value: &str) -> Result<(), String> {
+        ensure_allowed_endpoint(&Url::parse(value).expect("valid url"))
+    }
+
+    #[test]
+    fn refuses_metadata_and_plaintext_remote_endpoints() {
+        assert!(check("http://169.254.169.254/latest/meta-data").is_err());
+        assert!(check("http://metadata.google.internal/computeMetadata/v1").is_err());
+        assert!(check("http://api.example.com/v1").is_err());
+        assert!(check("file:///etc/passwd").is_err());
+    }
+
+    #[test]
+    fn keeps_https_and_local_runtimes_usable() {
+        assert!(check("https://api.openai.com/v1").is_ok());
+        assert!(check("http://127.0.0.1:11434/v1").is_ok());
+        assert!(check("http://localhost:1234/v1").is_ok());
     }
 }

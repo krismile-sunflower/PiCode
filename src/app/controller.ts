@@ -3,14 +3,19 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { apiJson, isDesktop, postJson } from '../lib/desktop';
 import { initialTransportUrl, PiTransport } from '../lib/transport';
 import type {
+  AppUpdateInfo,
+  Automation,
   DesktopSettings,
   ExtensionUiRequest,
   GitChangeArea,
   GitFileDiff,
+  GitReviewScope,
   GitOperationResult,
   GitStatus,
   ImageAttachment,
   ModelInfo,
+  ModelRole,
+  ModelRoute,
   ModelsConfig,
   ModelsConfigResponse,
   ModelsProviderConfig,
@@ -31,6 +36,7 @@ import type {
   RpcEvent,
   RpcResponse,
   RenderedMessage,
+  ReviewComment,
   SessionEntry,
   SessionProject,
   SessionSearchResult,
@@ -40,6 +46,7 @@ import type {
   TransportEnvelope,
   Usage,
   WorkspaceView,
+  WorktreeInfo,
 } from '../lib/types';
 import {
   basename,
@@ -92,6 +99,9 @@ function detailsPatch(result: unknown): Pick<ToolExecution, 'resultDetails'> | u
   const details = subagentDetailsOf(result);
   return details ? { resultDetails: details } : undefined;
 }
+
+/** Queued messages older than this are cancelled rather than sent late. */
+const QUEUE_TTL_MS = 10 * 60_000;
 
 function knownModelValue(value?: string | null): string {
   const normalized = String(value || '').trim();
@@ -187,6 +197,7 @@ export class PiStudioController {
       void this.loadModelsConfig();
     }
     if (view === 'customization') {
+      void this.loadAutomations();
       void this.loadExtensions();
       void this.loadPackages();
       void this.searchPackages();
@@ -241,6 +252,19 @@ export class PiStudioController {
         connection: 'idle',
       });
     }
+  }
+
+  /**
+   * Start a no-folder conversation as read-only research.
+   *
+   * Projects and chats are deliberately different things: a project is bound
+   * to a repository and may change it, a chat is not bound to anything and
+   * should not be able to. Plan mode is the per-session read-only guarantee,
+   * so a chat starts there rather than merely being unbound by convention.
+   */
+  async launchChat(): Promise<void> {
+    await this.launchNoFolder();
+    if (appStore.getSnapshot().hasActivePiSession) await this.enterPlan();
   }
 
   async launchNoFolder(): Promise<void> {
@@ -355,6 +379,11 @@ export class PiStudioController {
     }
 
     const generation = ++this.sessionSwitchGeneration;
+    // Clearing `isStreaming` only hides the old turn; Pi keeps generating and
+    // keeps appending to the session we are leaving. Tell it to stop first.
+    if (appStore.getSnapshot().isStreaming) {
+      void this.rpcCommand({ type: 'abort' }).catch(() => this.transport.send({ type: 'abort' }));
+    }
     // Keep the previous timeline visible until the next history is ready.
     appStore.update({
       selectedSessionFile: session.filePath,
@@ -381,6 +410,134 @@ export class PiStudioController {
       if (!this.isCurrentSessionSwitch(generation, session.filePath)) return;
       appStore.update({ sessionSwitching: false });
       this.addError(`切换会话失败：${String(error)}`);
+    }
+  }
+
+  /**
+   * Start a session against an isolated copy of the repository.
+   *
+   * Pi edits the directory it runs in, so two tasks on one checkout fight over
+   * the same files. A detached worktree gives the task its own tree; because
+   * PiCode already runs one Pi process per path, this is also what makes two
+   * sessions on the same repository able to run at once.
+   */
+  /**
+   * Attach the workbench to another running Pi process.
+   *
+   * One Pi runs per project path, so isolated copies already run in parallel —
+   * what was missing is a way to look at any of them. This makes the live
+   * instances the sidebar polls actually selectable.
+   */
+  async switchToInstance(pid: number): Promise<void> {
+    if (!isDesktop) return;
+    const state = appStore.getSnapshot();
+    if (state.liveInstances.find((item) => item.pid === pid) === undefined) return;
+    try {
+      const instance = await invoke<PiInstance>('switch_instance', { pid });
+      this.acceptInstance(instance, true);
+      appStore.update({ view: 'chat' });
+      this.transport.forceReconnect();
+      this.refreshSessionsSoon(400);
+      await this.loadProjects();
+    } catch (error) {
+      notify('切换实例失败', String(error), 'error');
+    }
+  }
+
+  async newIsolatedSession(label: string): Promise<boolean> {
+    const state = appStore.getSnapshot();
+    if (!isDesktop || !state.workspace.path || state.workspace.noFolder) {
+      notify('无法创建隔离副本', '请先打开一个本地 Git 项目。', 'warning');
+      return false;
+    }
+    try {
+      const worktree = await invoke<WorktreeInfo>('create_session_worktree', {
+        request: { path: state.workspace.path, label },
+      });
+      await this.launchProject(worktree.path);
+      await this.newSession();
+      notify('已在隔离副本中开始', worktree.path, 'success');
+      return true;
+    } catch (error) {
+      notify('创建隔离副本失败', String(error), 'error');
+      return false;
+    }
+  }
+
+  /**
+   * A read-only session: a new conversation that starts in Plan mode.
+   *
+   * Plan mode is the only per-session read-only guarantee the extension can
+   * enforce (the permission mode itself is global), so "research only" maps
+   * onto it rather than pretending to be a separate policy.
+   */
+  async newResearchSession(): Promise<void> {
+    await this.newSession();
+    await this.enterPlan();
+  }
+
+  async loadAutomations(): Promise<void> {
+    if (!isDesktop) return;
+    try {
+      appStore.update({ automations: await invoke<Automation[]>('list_automations') });
+    } catch (error) {
+      notify('读取定时任务失败', String(error), 'error');
+    }
+  }
+
+  async saveAutomations(automations: Automation[]): Promise<boolean> {
+    if (!isDesktop) return false;
+    try {
+      const saved = await invoke<Automation[]>('save_automations', { automations });
+      appStore.update({ automations: saved });
+      return true;
+    } catch (error) {
+      notify('保存定时任务失败', String(error), 'error');
+      return false;
+    }
+  }
+
+  /** Run one automation now, ignoring its schedule. */
+  async runAutomation(id: string): Promise<void> {
+    if (!isDesktop) return;
+    try {
+      await invoke('run_automation', { id });
+      notify('定时任务已触发', '结果会写入对应项目的当前会话。', 'success');
+      await this.loadAutomations();
+    } catch (error) {
+      notify('运行失败', String(error), 'error');
+      await this.loadAutomations();
+    }
+  }
+
+  async loadWorktrees(): Promise<void> {
+    const state = appStore.getSnapshot();
+    if (!isDesktop || !state.workspace.path || state.workspace.noFolder) {
+      appStore.update({ worktrees: [] });
+      return;
+    }
+    try {
+      const worktrees = await invoke<WorktreeInfo[]>('list_session_worktrees', { path: state.workspace.path });
+      appStore.update({ worktrees });
+    } catch {
+      // Not a Git repository: isolation simply is not offered.
+      appStore.update({ worktrees: [] });
+    }
+  }
+
+  async removeWorktree(worktreePath: string, discardChanges: boolean): Promise<boolean> {
+    const state = appStore.getSnapshot();
+    if (!isDesktop || !state.workspace.path) return false;
+    try {
+      const worktrees = await invoke<WorktreeInfo[]>('remove_session_worktree', {
+        request: { path: state.workspace.path, worktreePath, discardChanges },
+      });
+      appStore.update({ worktrees });
+      notify('已移除隔离副本', worktreePath, 'success');
+      return true;
+    } catch (error) {
+      notify('移除失败', String(error), 'error');
+      return false;
     }
   }
 
@@ -451,19 +608,24 @@ export class PiStudioController {
 
     if (appStore.getSnapshot().isStreaming) {
       appStore.update((state) => ({
-        queue: [...state.queue, { id: uniqueId('queued'), message: prompt, images }],
+        queue: [...state.queue, { id: uniqueId('queued'), message: prompt, images, queuedAt: Date.now() }],
       }));
       return;
     }
 
     this.removeWelcome();
-    this.appendMessage('user', prompt, { images });
+    const bubbleId = this.appendMessage('user', prompt, { images });
     this.pendingPrompts.push({ message: prompt, createdAt: Date.now(), confirmed: false });
     try {
       await this.sendPrompt(command);
     } catch (error) {
       this.pendingPrompts = this.pendingPrompts.filter((item) => item.message !== prompt);
-      this.addError(`发送失败：${String(error)}`);
+      // The bubble was optimistic. Leaving it in place produced a "ghost
+      // message" the user believed was sent, so take it back out and hand the
+      // text to the composer instead of losing it.
+      if (bubbleId) this.removeMessage(bubbleId);
+      this.addError(`发送失败：${String(error)}。消息已放回输入框。`);
+      window.dispatchEvent(new CustomEvent('pi-studio:prefill-composer', { detail: { prompt } }));
       this.transport.forceReconnect();
     }
   }
@@ -472,6 +634,9 @@ export class PiStudioController {
   async enterPlan(goal = ''): Promise<void> {
     const state = appStore.getSnapshot();
     if (state.isStreaming || state.sessionSwitching) return;
+    // Planning and building are different jobs; honour the routing choice
+    // before the turn starts rather than after the model has already answered.
+    void this.applyModelRoute('plan');
     const alreadyPlanning = state.plan.phase === 'plan' || state.plan.phase === 'review';
     // Do not silently discard a visible draft when the front end needs to
     // re-assert Plan mode after a reconnect. `update` preserves its goal and
@@ -534,6 +699,8 @@ export class PiStudioController {
   async executePlan(): Promise<void> {
     const state = appStore.getSnapshot();
     if (state.isStreaming || state.sessionSwitching || !canExecutePlan(state.plan)) return;
+    // Only switch once execution is actually going ahead.
+    void this.applyModelRoute('build');
     const firstPending = state.plan.steps.findIndex((step) => step.status === 'pending');
     const steps: PlanStep[] = state.plan.steps.map((step, index) =>
       index === firstPending ? { ...step, status: 'in_progress' } : step,
@@ -556,7 +723,9 @@ export class PiStudioController {
         // Mirror's public prompt transport bypasses Pi's slash-command parser.
         // Its extension relays this private event without creating a user message.
         await this.sendPrompt({ type: 'pi_plan_command', command });
-        window.setTimeout(() => void this.syncCurrentHistory(), 160);
+        // The mirror channel is fire-and-forget, so there is no response to
+        // wait on. Poll the session instead of hoping 160 ms was enough.
+        void this.syncPlanStateSoon();
       } else {
         // Native RPC parses extension slash commands. Send through the request
         // path so Pi's response is authoritative before reading session history;
@@ -584,7 +753,10 @@ export class PiStudioController {
 
   abort(): void {
     void this.rpcCommand({ type: 'abort' }).catch(() => this.transport.send({ type: 'abort' }));
-    this.addError('已停止生成');
+    // Stopping on purpose is a normal outcome, not a failure. Rendering it as
+    // an error bubble told users the system broke when they were the one who
+    // pressed stop.
+    this.appendMessage('system', '已停止生成');
     appStore.update({ isStreaming: false });
   }
 
@@ -646,6 +818,68 @@ export class PiStudioController {
     }
   }
 
+  /**
+   * Re-run the last exchange without making the user retype it.
+   *
+   * Pi has no "regenerate" verb, so this rewinds to the most recent user
+   * message and replays it verbatim — the same path an edit takes, minus the
+   * edit. Anything the assistant produced after it is dropped, which is the
+   * point: a regenerate that kept the old answer would leave two conflicting
+   * replies in the transcript.
+   */
+  async regenerateLastResponse(): Promise<boolean> {
+    const state = appStore.getSnapshot();
+    if (state.isStreaming) return false;
+    for (let index = state.timeline.length - 1; index >= 0; index -= 1) {
+      const item = state.timeline[index];
+      if (item?.kind !== 'message' || item.message.role !== 'user') continue;
+      if (!item.message.sessionEntryId) break;
+      return this.resendLastUserMessage(
+        item.message.sessionEntryId,
+        item.message.content,
+        item.message.images || [],
+      );
+    }
+    notify('无法重新生成', '没有找到可重放的用户消息。', 'warning');
+    return false;
+  }
+
+  /**
+   * Branch a conversation into a new session file.
+   *
+   * With `entryId`, the copy stops right after that entry, which is how you
+   * explore a different direction from the middle of a session without
+   * destroying the original — the only previous option was deleting the tail.
+   */
+  async forkSession(filePath: string, entryId?: string): Promise<boolean> {
+    if (!filePath) return false;
+    try {
+      const result = await postJson<{ ok?: boolean; filePath?: string }>('/api/sessions/fork', {
+        filePath,
+        entryId: entryId || '',
+        // Minted here because the webview has a real UUID source and Rust
+        // would otherwise need a dependency just to name a file.
+        newId: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+      });
+      if (!result.ok || !result.filePath) throw new Error('复制会话失败');
+      await this.loadSessions();
+      const projects = appStore.getSnapshot().sessionProjects;
+      for (const project of projects) {
+        const session = project.sessions.find((item) => item.filePath === result.filePath);
+        if (session) {
+          await this.selectSession(session, project);
+          break;
+        }
+      }
+      notify('已创建分支会话', result.filePath, 'success');
+      return true;
+    } catch (error) {
+      notify('分支会话失败', String(error), 'error');
+      return false;
+    }
+  }
+
   async showSessionStats(): Promise<void> {
     const result = await this.rpcCommand<Record<string, unknown>>(
       { type: 'get_session_stats' },
@@ -695,6 +929,44 @@ export class PiStudioController {
       thinkingLevel: result.data?.thinkingLevel || appStore.getSnapshot().thinkingLevel,
       contextWindowSize: model.contextWindow || model.context_window || 0,
     });
+  }
+
+  /**
+   * Switch to the model assigned to a task role, if one is configured.
+   *
+   * Routing planning, coding and search to different providers is something a
+   * single-vendor client structurally cannot do; PiCode already supports any
+   * provider, it just never exposed the idea of "which model for which job".
+   */
+  async applyModelRoute(role: ModelRole): Promise<boolean> {
+    const state = appStore.getSnapshot();
+    const route = state.settings?.modelRoutes?.[role];
+    if (!route?.modelId) return false;
+    if (route.modelId === state.currentModelId && (route.provider || '') === (state.currentModelProvider || '')) {
+      return false;
+    }
+    const model = state.models.find(
+      (item) => item.id === route.modelId && (!route.provider || item.provider === route.provider),
+    ) || { id: route.modelId, provider: route.provider };
+    await this.setModel(model as ModelInfo);
+    return true;
+  }
+
+  async setModelRoute(role: ModelRole, route: ModelRoute | null): Promise<void> {
+    if (!isDesktop) return;
+    const current = appStore.getSnapshot().settings;
+    if (!current) return;
+    const modelRoutes = { ...(current.modelRoutes || {}) };
+    if (route && route.modelId) modelRoutes[role] = route;
+    else delete modelRoutes[role];
+    try {
+      const settings = await invoke<DesktopSettings>('save_desktop_settings', {
+        settings: { ...current, modelRoutes },
+      });
+      appStore.update({ settings });
+    } catch (error) {
+      notify('保存模型路由失败', String(error), 'error');
+    }
   }
 
   async cycleThinking(): Promise<void> {
@@ -945,7 +1217,7 @@ export class PiStudioController {
         true,
       );
       if (refresh.success) {
-        await new Promise((resolve) => window.setTimeout(resolve, 200));
+        await this.waitForModelList();
         await this.loadModels();
         // Also refresh slash commands so newly-added skill/prompt names can appear later.
         void this.loadSlashCommands();
@@ -971,6 +1243,22 @@ export class PiStudioController {
     }
   }
 
+  /** Roll models.json back to the copy taken before the last save. */
+  async restoreModelsConfig(): Promise<void> {
+    if (!isDesktop) return;
+    try {
+      const result = await invoke<ModelsConfigResponse>('restore_models_config');
+      appStore.update({
+        modelsConfig: result.config as ModelsConfig,
+        modelsConfigPath: result.path,
+        modelsConfigError: '',
+      });
+      notify('已恢复备份', result.path, 'success');
+    } catch (error) {
+      notify('恢复失败', String(error), 'error');
+    }
+  }
+
   async openModelsConfig(): Promise<void> {
     if (!isDesktop) {
       notify('桌面端功能', '打开 models.json 仅在桌面应用中可用。', 'warning');
@@ -981,6 +1269,77 @@ export class PiStudioController {
       notify('已打开 models.json', path, 'info');
     } catch (error) {
       notify('打开失败', String(error), 'error');
+    }
+  }
+
+  async openAuditLog(): Promise<void> {
+    if (!isDesktop) {
+      notify('桌面端功能', '审计日志仅在桌面应用中可用。', 'warning');
+      return;
+    }
+    try {
+      const path = await invoke<string>('open_audit_log');
+      notify('已打开审计日志', path, 'info');
+    } catch (error) {
+      notify('打开失败', String(error), 'error');
+    }
+  }
+
+  /**
+   * Check for a PiCode (host app) update.
+   *
+   * Distinct from `checkPiUpdate`, which updates the Pi runtime: until now the
+   * shell itself could only be updated by re-downloading the installer, so a
+   * security fix had no way to reach an installed user.
+   */
+  async checkAppUpdate(quiet = false): Promise<void> {
+    if (!isDesktop) return;
+    appStore.update({ appUpdateChecking: true });
+    try {
+      const info = await invoke<AppUpdateInfo>('check_app_update');
+      appStore.update({ appUpdate: info, appUpdateChecking: false });
+      if (quiet) return;
+      if (!info.configured) {
+        notify('未配置更新通道', '在下方填入发布源地址后即可检查更新。', 'warning');
+      } else if (info.error) {
+        notify('检查更新失败', info.error, 'error');
+      } else if (info.available) {
+        notify('发现新版本', `PiCode ${info.newVersion} 可用（当前 ${info.currentVersion}）`, 'info');
+      } else {
+        notify('已是最新版本', `PiCode ${info.currentVersion}`, 'success');
+      }
+    } catch (error) {
+      appStore.update({ appUpdateChecking: false });
+      if (!quiet) notify('检查更新失败', String(error), 'error');
+    }
+  }
+
+  async installAppUpdate(): Promise<void> {
+    if (!isDesktop) return;
+    appStore.update({ appUpdateChecking: true });
+    try {
+      const version = await invoke<string>('install_app_update');
+      notify('更新已安装', `PiCode ${version}。Windows 会自动重启，其他平台请手动重新打开。`, 'success');
+    } catch (error) {
+      notify('安装更新失败', String(error), 'error');
+    } finally {
+      appStore.update({ appUpdateChecking: false });
+    }
+  }
+
+  async setUpdateEndpoint(endpoint: string): Promise<void> {
+    if (!isDesktop) return;
+    const current = appStore.getSnapshot().settings;
+    if (!current) return;
+    try {
+      const settings = await invoke<DesktopSettings>('save_desktop_settings', {
+        settings: { ...current, updateEndpoint: endpoint.trim() },
+      });
+      appStore.update({ settings });
+      await this.checkAppUpdate(true);
+      notify('更新通道已保存', endpoint.trim() || '已清除更新地址', 'success');
+    } catch (error) {
+      notify('保存更新通道失败', String(error), 'error');
     }
   }
 
@@ -1160,7 +1519,11 @@ export class PiStudioController {
     if (!isDesktop || !root) return;
     appStore.update({ selectedGitPath: filePath, selectedGitArea: area, gitDiff: null, gitDiffLoading: true });
     try {
-      const gitDiff = await invoke<GitFileDiff>('get_git_file_diff', { path: root, filePath, diffMode: area });
+      const gitDiff = await invoke<GitFileDiff>('get_git_file_diff', {
+        path: root,
+        filePath,
+        ...this.diffScopeArgs(area),
+      });
       const current = appStore.getSnapshot();
       if (current.selectedGitPath === filePath && current.selectedGitArea === area) appStore.update({ gitDiff, gitDiffLoading: false });
     } catch (error) {
@@ -1169,8 +1532,104 @@ export class PiStudioController {
     }
   }
 
+  /**
+   * Translate the review scope into the backend's diff arguments.
+   *
+   * `staged`/`unstaged` keep the index split; the other scopes compare the
+   * working tree against a revision, which is what makes "what changed this
+   * turn" and "what changed since the base branch" possible.
+   */
+  private diffScopeArgs(area: GitChangeArea): { diffMode: string; baseRef?: string } {
+    const state = appStore.getSnapshot();
+    if (state.gitReviewScope === 'head') return { diffMode: 'head' };
+    if (state.gitReviewScope === 'base' && state.gitBaseRef) {
+      return { diffMode: 'range', baseRef: state.gitBaseRef };
+    }
+    if (state.gitReviewScope === 'turn' && state.gitTurnBaseline) {
+      return { diffMode: 'range', baseRef: state.gitTurnBaseline };
+    }
+    return { diffMode: area };
+  }
+
+  async setGitReviewScope(scope: GitReviewScope, baseRef?: string): Promise<void> {
+    appStore.update({ gitReviewScope: scope, ...(baseRef === undefined ? {} : { gitBaseRef: baseRef }) });
+    if (scope === 'base' && !appStore.getSnapshot().gitBranches.length) await this.loadGitBranches();
+    const { selectedGitPath, selectedGitArea } = appStore.getSnapshot();
+    if (selectedGitPath && selectedGitArea) await this.selectGitChange(selectedGitPath, selectedGitArea);
+  }
+
+  async loadGitBranches(): Promise<void> {
+    const root = appStore.getSnapshot().workspace.path;
+    if (!isDesktop || !root) return;
+    try {
+      const branches = await invoke<string[]>('list_git_branches', { path: root });
+      const current = appStore.getSnapshot();
+      const preferred = current.gitBaseRef
+        || branches.find((name) => /^(?:origin\/)?(?:main|master|develop)$/.test(name))
+        || branches[0]
+        || '';
+      appStore.update({ gitBranches: branches, gitBaseRef: preferred });
+    } catch (error) {
+      appStore.update({ gitError: String(error) });
+    }
+  }
+
+  /**
+   * Record where the working tree stood before Pi starts changing it, so the
+   * review panel can show "this turn only" instead of every uncommitted edit.
+   */
+  async markGitTurnBaseline(): Promise<void> {
+    const state = appStore.getSnapshot();
+    if (!isDesktop || !state.workspace.path || state.workspace.noFolder) return;
+    try {
+      const baseline = await invoke<string>('create_git_snapshot', { path: state.workspace.path });
+      if (baseline) appStore.update({ gitTurnBaseline: baseline });
+    } catch {
+      // Not a repository, or Git is unavailable: the scope switch stays hidden.
+    }
+  }
+
+  async applyGitPatch(patch: string, options: { reverse?: boolean; cached?: boolean } = {}): Promise<boolean> {
+    return this.runGitOperation(
+      'apply_git_patch',
+      { patch, reverse: Boolean(options.reverse), cached: Boolean(options.cached) },
+      options.reverse ? '撤销片段失败' : '应用片段失败',
+    );
+  }
+
+  addReviewComment(comment: Omit<ReviewComment, 'id'>): void {
+    const item: ReviewComment = { ...comment, id: uniqueId('review') };
+    appStore.update((state) => ({ reviewComments: [...state.reviewComments, item] }));
+  }
+
+  removeReviewComment(id: string): void {
+    appStore.update((state) => ({ reviewComments: state.reviewComments.filter((item) => item.id !== id) }));
+  }
+
+  clearReviewComments(): void {
+    appStore.update({ reviewComments: [] });
+  }
+
+  /**
+   * Turn inline review notes into one follow-up instruction.
+   *
+   * The point of reviewing in the app is to act on what you found without
+   * retyping it: each note carries its file, line and the code it points at.
+   */
+  sendReviewComments(): void {
+    const comments = appStore.getSnapshot().reviewComments;
+    if (!comments.length) return;
+    const body = comments
+      .map((comment, index) => `${index + 1}. ${comment.path}:${comment.line}\n   代码：${comment.code.trim()}\n   意见：${comment.text.trim()}`)
+      .join('\n');
+    const prompt = `请按下面的逐行审阅意见修改，范围保持最小，不要顺带重构其他部分：\n\n${body}`;
+    this.setView('chat');
+    window.dispatchEvent(new CustomEvent('pi-studio:prefill-composer', { detail: { prompt } }));
+    this.clearReviewComments();
+  }
+
   private async runGitOperation(
-    command: 'pull_git' | 'commit_git' | 'push_git' | 'stage_git_files' | 'stage_all_git' | 'unstage_git_files' | 'unstage_all_git',
+    command: 'pull_git' | 'commit_git' | 'push_git' | 'stage_git_files' | 'stage_all_git' | 'unstage_git_files' | 'unstage_all_git' | 'apply_git_patch',
     payload: Record<string, unknown>,
     failureTitle: string,
   ): Promise<boolean> {
@@ -1440,6 +1899,46 @@ export class PiStudioController {
     void this.loadModels();
     void this.loadSlashCommands();
     this.refreshSessionsSoon(300);
+    void this.resendUnconfirmedPrompts();
+  }
+
+  /**
+   * Re-send prompts the transport dropped while it was down.
+   *
+   * `pendingPrompts` already tracked in-flight sends to suppress duplicate
+   * history rendering, but nothing ever retried them: if the socket died
+   * between the send and Pi's `agent_start`, the message sat in the timeline
+   * looking delivered and never was. Before resending, the session's own
+   * entries are consulted — a prompt that actually landed must not be sent
+   * twice just because its acknowledgement was lost.
+   */
+  private async resendUnconfirmedPrompts(): Promise<void> {
+    const cutoff = Date.now() - 120_000;
+    const stale = this.pendingPrompts.filter((prompt) => !prompt.confirmed && prompt.createdAt >= cutoff);
+    this.pendingPrompts = this.pendingPrompts.filter((prompt) => prompt.createdAt >= cutoff);
+    if (!stale.length || appStore.getSnapshot().isStreaming) return;
+
+    const result = await this.rpcCommand<{ entries?: SessionEntry[] }>({ type: 'get_entries' }, '', true);
+    const entries = result.success ? result.data?.entries || [] : [];
+    const landed = new Set(
+      entries
+        .filter((entry) => entry.message?.role === 'user')
+        .map((entry) => normalizeMessageText(getMessageText(entry.message))),
+    );
+
+    for (const prompt of stale) {
+      if (landed.has(normalizeMessageText(prompt.message))) {
+        prompt.confirmed = true;
+        continue;
+      }
+      try {
+        await this.sendPrompt({ type: 'prompt', message: prompt.message });
+        notify('已重新发送', '连接恢复后补发了未送达的消息。', 'info');
+      } catch (error) {
+        this.pendingPrompts = this.pendingPrompts.filter((item) => item !== prompt);
+        this.addError(`补发失败：${String(error)}`);
+      }
+    }
   }
 
   /**
@@ -1554,6 +2053,8 @@ export class PiStudioController {
       case 'agent_start':
         this.pendingPrompts[0] && (this.pendingPrompts[0].confirmed = true);
         appStore.update({ isStreaming: true });
+        // Snapshot the tree now so the review panel can isolate "this turn".
+        void this.markGitTurnBaseline();
         break;
       case 'agent_end':
         this.finishStreaming();
@@ -1657,6 +2158,21 @@ export class PiStudioController {
           ? { ...prompt, confirmed: true }
           : prompt,
       );
+    }
+  }
+
+  /**
+   * Re-read session history a few times until the plan phase actually moves.
+   *
+   * The extension writes its plan entry asynchronously; a single delayed read
+   * left Plan mode looking stuck whenever the write landed late.
+   */
+  private async syncPlanStateSoon(attempts = 6): Promise<void> {
+    const before = appStore.getSnapshot().plan.phase;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 120));
+      await this.syncCurrentHistory();
+      if (appStore.getSnapshot().plan.phase !== before) return;
     }
   }
 
@@ -1836,7 +2352,7 @@ export class PiStudioController {
       const current = appStore.getSnapshot().timeline;
       if (next.timeline.length === 0 && !state.isStreaming) {
         const alreadyShowingWelcome = current.some(
-          (item) => item.kind === 'message' && item.message.content === '__PI_STUDIO_WELCOME__',
+          (item) => item.kind === 'message' && item.message.welcome === true,
         );
         if (alreadyShowingWelcome) {
           if (state.sessionSwitching) appStore.update({ sessionSwitching: false });
@@ -2016,10 +2532,45 @@ export class PiStudioController {
   }
 
   private async flushQueue(): Promise<void> {
+    this.expireQueuedMessages();
     const next = appStore.getSnapshot().queue[0];
     if (!next || appStore.getSnapshot().isStreaming) return;
     this.cancelQueuedMessage(next.id);
     await this.sendMessage(next.message, next.images || []);
+  }
+
+  /**
+   * Drop queued messages that never got their turn.
+   *
+   * The queue only drains on `agent_end`; if a turn died without one, entries
+   * sat there indefinitely and then fired much later, out of context.
+   */
+  private expireQueuedMessages(): void {
+    const cutoff = Date.now() - QUEUE_TTL_MS;
+    const stale = appStore.getSnapshot().queue.filter((item) => (item.queuedAt || 0) < cutoff);
+    if (!stale.length) return;
+    appStore.update((state) => ({ queue: state.queue.filter((item) => (item.queuedAt || 0) >= cutoff) }));
+    notify(
+      '已丢弃排队消息',
+      `${stale.length} 条消息排队超过 ${Math.round(QUEUE_TTL_MS / 60_000)} 分钟未发送，已取消以避免脱离上下文。`,
+      'warning',
+    );
+  }
+
+  /**
+   * Wait until Pi actually has models, rather than guessing a delay.
+   *
+   * `/refresh-models` is asynchronous on Pi's side. The previous fixed 150–200 ms
+   * sleep silently produced an empty list whenever the provider took longer,
+   * which surfaced as "no models available" right after a successful refresh.
+   */
+  private async waitForModelList(timeoutMs = 4_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const models = await this.rpcCommand<ModelsResponse>({ type: 'get_available_models' }, '', true);
+      if (models.success && (models.data?.models?.length || 0) > 0) return;
+      await new Promise((resolve) => window.setTimeout(resolve, 120));
+    }
   }
 
   async loadModels(options: { tryRefresh?: boolean } = {}): Promise<void> {
@@ -2044,7 +2595,7 @@ export class PiStudioController {
           true,
         );
         if (refreshed.success) {
-          await new Promise((resolve) => window.setTimeout(resolve, 150));
+          await this.waitForModelList();
           return this.loadModels({ tryRefresh: false });
         }
       }
@@ -2174,6 +2725,7 @@ export class PiStudioController {
       usage?: Usage;
       streaming?: boolean;
       history?: boolean;
+      welcome?: boolean;
     } = {},
   ): string {
     const id = options.id || uniqueId(role);
@@ -2187,17 +2739,21 @@ export class PiStudioController {
   }
 
   private appendWelcome(): void {
-    this.appendMessage('system', '__PI_STUDIO_WELCOME__', { id: uniqueId('welcome') });
+    this.appendMessage('system', '', { id: uniqueId('welcome'), welcome: true });
   }
 
   private addWelcome(): void {
     if (appStore.getSnapshot().timeline.length === 0) this.appendWelcome();
   }
 
+  private removeMessage(id: string): void {
+    appStore.update((state) => ({ timeline: state.timeline.filter((item) => item.id !== id) }));
+  }
+
   private removeWelcome(): void {
     appStore.update((state) => ({
       timeline: state.timeline.filter(
-        (item) => item.kind !== 'message' || item.message.content !== '__PI_STUDIO_WELCOME__',
+        (item) => item.kind !== 'message' || item.message.welcome !== true,
       ),
     }));
   }

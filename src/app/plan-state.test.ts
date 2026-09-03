@@ -122,3 +122,29 @@ describe('plan session state', () => {
     expect(applyPlanControlMarkers(executing, '[DONE:99]')).toBe(executing);
   });
 });
+
+describe('plan control marker variants', () => {
+  const executing = {
+    phase: 'executing' as const,
+    goal: 'ship',
+    steps: [
+      { id: '1', title: 'a', status: 'in_progress' as const },
+      { id: '2', title: 'b', status: 'pending' as const },
+      { id: '3', title: 'c', status: 'pending' as const },
+    ],
+    updatedAt: '2026-09-02T00:00:00.000Z',
+  };
+
+  it('applies full-width and multi-index markers', () => {
+    expect(applyPlanControlMarkers(executing, '【DONE：1,2】').steps.map((step) => step.status))
+      .toEqual(['complete', 'complete', 'in_progress']);
+    expect(applyPlanControlMarkers(executing, '[DONE: 1]').steps[0]?.status).toBe('complete');
+  });
+
+  it('strips every accepted marker shape from displayed text', () => {
+    expect(stripPlanControlMarkers('完成第一步 [DONE:1]')).toBe('完成第一步');
+    // Surrounding spaces go with the marker so prose does not gain double gaps.
+    expect(stripPlanControlMarkers('完成 【DONE：1,2】 收尾')).toBe('完成收尾');
+    expect(stripPlanControlMarkers('受阻 [BLOCKED: 3]')).toBe('受阻');
+  });
+});

@@ -1,3 +1,4 @@
+mod audit;
 mod commands;
 mod rpc;
 mod settings;
@@ -99,6 +100,9 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             commands::api::api_request,
+            commands::automations::list_automations,
+            commands::automations::run_automation,
+            commands::automations::save_automations,
             commands::desktop::get_desktop_settings,
             commands::desktop::ensure_default_pi_session,
             commands::desktop::save_desktop_settings,
@@ -106,6 +110,9 @@ pub fn run() {
             commands::desktop::set_autostart,
             commands::desktop::is_autostart_enabled,
             commands::desktop::notify_desktop,
+            commands::desktop::open_audit_log,
+            commands::desktop::check_app_update,
+            commands::desktop::install_app_update,
             commands::desktop::open_project_window,
             commands::extensions::install_pi_extension,
             commands::extensions::list_pi_extensions,
@@ -117,7 +124,13 @@ pub fn run() {
             commands::prompts::save_pi_prompt,
             commands::prompts::delete_pi_prompt,
             commands::files::list_files,
+            commands::files::search_project_files,
+            commands::files::read_project_instructions,
+            commands::files::write_project_instructions,
+            commands::git::apply_git_patch,
             commands::git::commit_git,
+            commands::git::create_git_snapshot,
+            commands::git::list_git_branches,
             commands::git::get_git_status,
             commands::git::get_git_file_diff,
             commands::git::pull_git,
@@ -133,6 +146,7 @@ pub fn run() {
             commands::models::fetch_provider_models,
             commands::models::test_provider_model,
             commands::models::open_models_config,
+            commands::models::restore_models_config,
             commands::sidecar::get_pi_runtime_info,
             commands::sidecar::check_pi_update,
             commands::sidecar::update_pi_runtime,
@@ -141,6 +155,9 @@ pub fn run() {
             commands::sidecar::list_instances,
             commands::sidecar::switch_instance,
             commands::sessions::list_local_sessions,
+            commands::worktrees::create_session_worktree,
+            commands::worktrees::list_session_worktrees,
+            commands::worktrees::remove_session_worktree,
             rpc::client::pi_rpc_connect,
             rpc::client::pi_rpc_disconnect,
             rpc::client::pi_rpc_send,
@@ -150,9 +167,14 @@ pub fn run() {
         ])
 
         .setup(|app| {
+            // The host app previously had no update path at all: a security fix
+            // could only reach users who happened to re-download the installer.
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             tray::install(app.handle())?;
             tray::install_menu(app.handle())?;
             register_global_shortcuts(app.handle());
+            commands::automations::spawn_scheduler(app.handle().clone());
             // Align native title/menu bar with the app's default dark chrome until
             // the frontend applies the saved theme.
             if let Some(window) = app.get_webview_window("main") {
@@ -199,6 +221,13 @@ pub fn run() {
             });
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running PiCode");
-}
+        .build(tauri::generate_context!())
+        .expect("error while running PiCode")
+        // Tauri does not reap child processes for us. Without an exit hook the
+        // spawned `pi` sidecars survive the window on Windows, keeping their
+        // mirror ports bound and drifting the next launch to a higher port.
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                commands::sidecar::shutdown_all(&app_handle.state::<AppState>());
+            }
+        });}

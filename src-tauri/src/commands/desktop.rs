@@ -178,3 +178,141 @@ pub async fn open_project_window(
 
     Ok(())
 }
+
+/// Open the desktop audit trail in the user's default editor.
+///
+/// The log is only useful if the user can find it, so the Settings screen links
+/// here rather than documenting a config path they would have to hunt down.
+#[tauri::command]
+pub async fn open_audit_log(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let dir = crate::audit::audit_dir().ok_or_else(|| "无法定位日志目录。".to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
+    let path = dir.join("audit.jsonl");
+    if !path.exists() {
+        // An empty trail is still worth opening: it shows where to look.
+        std::fs::write(&path, "").map_err(|err| err.to_string())?;
+    }
+    app.opener()
+        .open_path(path.display().to_string(), None::<&str>)
+        .map_err(|err| format!("无法打开审计日志：{err}"))?;
+    Ok(path.display().to_string())
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUpdateInfo {
+    pub configured: bool,
+    pub available: bool,
+    pub current_version: String,
+    pub new_version: Option<String>,
+    pub notes: Option<String>,
+    pub endpoint: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Where release metadata is fetched from.
+///
+/// Kept in desktop settings rather than baked into `tauri.conf.json` so a fork
+/// or a self-hosted build can point at its own channel without recompiling.
+/// The signing public key still comes from the bundle config — that is what
+/// makes an update verifiable, and it must not be user-editable.
+fn update_endpoints(app: &tauri::AppHandle) -> Vec<url::Url> {
+    let _ = app;
+    crate::settings::load()
+        .update_endpoint
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .and_then(|value| url::Url::parse(value).ok())
+        .map(|url| vec![url])
+        .unwrap_or_default()
+}
+
+fn build_updater(app: &tauri::AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let mut builder = app.updater_builder();
+    let endpoints = update_endpoints(app);
+    if !endpoints.is_empty() {
+        builder = builder
+            .endpoints(endpoints)
+            .map_err(|error| format!("更新地址无效：{error}"))?;
+    }
+    builder.build().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn check_app_update(app: tauri::AppHandle) -> Result<AppUpdateInfo, String> {
+    let current_version = app.package_info().version.to_string();
+    let endpoint = crate::settings::load().update_endpoint;
+    let configured = endpoint
+        .as_deref()
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    if !configured {
+        return Ok(AppUpdateInfo {
+            configured: false,
+            available: false,
+            current_version,
+            new_version: None,
+            notes: None,
+            endpoint,
+            error: None,
+        });
+    }
+
+    let updater = build_updater(&app)?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(AppUpdateInfo {
+            configured: true,
+            available: true,
+            current_version,
+            new_version: Some(update.version.clone()),
+            notes: update.body.clone(),
+            endpoint,
+            error: None,
+        }),
+        Ok(None) => Ok(AppUpdateInfo {
+            configured: true,
+            available: false,
+            current_version,
+            new_version: None,
+            notes: None,
+            endpoint,
+            error: None,
+        }),
+        Err(error) => Ok(AppUpdateInfo {
+            configured: true,
+            available: false,
+            current_version,
+            new_version: None,
+            notes: None,
+            endpoint,
+            error: Some(error.to_string()),
+        }),
+    }
+}
+
+/// Download and install a pending update, then restart.
+///
+/// The bytes are signature-checked by the plugin against the bundled public
+/// key before anything is executed; an unsigned or mismatched payload fails
+/// here rather than being installed.
+#[tauri::command]
+pub async fn install_app_update(app: tauri::AppHandle) -> Result<String, String> {
+    let updater = build_updater(&app)?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|error| format!("检查更新失败：{error}"))?
+        .ok_or_else(|| "当前已是最新版本。".to_string())?;
+    let version = update.version.clone();
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|error| format!("安装更新失败：{error}"))?;
+    crate::audit::ok("app.update_installed", serde_json::json!({ "version": version }));
+    Ok(version)
+}

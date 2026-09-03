@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { TimelineItem } from '../lib/types';
 import { MessageList } from './MessageList';
@@ -9,7 +9,7 @@ describe('MessageList', () => {
       {
         id: 'welcome',
         kind: 'message',
-        message: { id: 'welcome', role: 'system', content: '__PI_STUDIO_WELCOME__' },
+        message: { id: 'welcome', role: 'system', content: '', welcome: true },
       },
       {
         id: 'assistant',
@@ -158,9 +158,51 @@ describe('MessageList', () => {
     );
 
     expect(screen.getByRole('region', { name: 'Pi 工具执行授权' })).toHaveTextContent('pnpm test -- --run');
-    expect(screen.getByText('等待授权')).toBeInTheDocument();
+    expect(screen.getByText(/后自动拒绝/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '仅允许本次' }));
     expect(onRespond).toHaveBeenCalledWith(request, { value: '仅允许本次' });
+  });
+
+  it('answers permission prompts from the keyboard', () => {
+    const request = {
+      id: 'permission-keys',
+      method: 'select' as const,
+      title: 'Pi 请求权限\n执行命令\npnpm test',
+      options: ['仅允许本次', '本会话允许：本会话内的 `pnpm test` 命令', '拒绝'],
+    };
+
+    const onAllow = vi.fn();
+    const { unmount } = render(
+      <MessageList timeline={[]} streaming extensionUiRequest={request} onRespondToExtension={onAllow} />,
+    );
+    fireEvent.keyDown(window, { key: 'Enter', metaKey: true });
+    expect(onAllow).toHaveBeenCalledWith(request, { value: '仅允许本次' });
+    unmount();
+
+    const onDeny = vi.fn();
+    render(<MessageList timeline={[]} streaming extensionUiRequest={request} onRespondToExtension={onDeny} />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onDeny).toHaveBeenCalledWith(request, { value: '拒绝' });
+  });
+
+  it('fails closed when a permission prompt is never answered', () => {
+    vi.useFakeTimers();
+    try {
+      const onRespond = vi.fn();
+      const request = {
+        id: 'permission-timeout',
+        method: 'select' as const,
+        title: 'Pi 请求权限\n执行命令\nrm -rf build',
+        options: ['仅允许本次', '拒绝'],
+      };
+      render(<MessageList timeline={[]} streaming extensionUiRequest={request} onRespondToExtension={onRespond} />);
+      act(() => {
+        vi.advanceTimersByTime(301_000);
+      });
+      expect(onRespond).toHaveBeenCalledWith(request, { value: '拒绝' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps existing one-line permission requests readable', () => {

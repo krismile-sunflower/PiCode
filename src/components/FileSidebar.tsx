@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { apiJson, postJson } from '../lib/desktop';
 import type { AppSnapshot, FileAttachment, GitChange, GitChangeArea, PlanSessionState, PlanStep, TimelineItem, ToolExecution } from '../lib/types';
 import { Icon } from './Icon';
+import { DiffView } from './DiffView';
 import { controller } from '../app/controller';
 import { canExecutePlan, formatPlanSteps, parsePlanSteps } from '../app/plan-state';
 
@@ -451,6 +452,7 @@ export function FileSidebar({ rootPath, open, snapshot, planTabRequest = 0, onCl
           </div>
           <div className="file-sidebar-actions">
             {tab === 'files' ? <button className="icon-btn" type="button" title="全部折叠" aria-label="全部折叠" onClick={() => setExpanded(new Set())}><Icon name="arrow-left" width={14} height={14} style={{ transform: 'rotate(90deg)' }} /></button> : null}
+            {tab === 'changes' ? <button className="icon-btn" type="button" title="在主区域打开变更" aria-label="在主区域打开变更" onClick={() => controller.setView('changes')}><Icon name="changes" width={14} height={14} /></button> : null}
             {tab === 'changes' ? <button className="icon-btn" type="button" title="刷新 Git 变更" aria-label="刷新 Git 变更" disabled={gitBusy} onClick={() => void controller.loadGitStatus()}><Icon name="refresh" width={14} height={14} /></button> : null}
             <button className="icon-btn" type="button" title="在文件管理器中打开" aria-label="在文件管理器中打开" disabled={!rootPath} onClick={() => void postJson('/api/open', { filePath: rootPath })}><Icon name="folder" width={14} height={14} /></button>
             <button className="icon-btn" type="button" title="关闭文件栏" aria-label="关闭文件栏" onClick={onClose}><Icon name="close" width={14} height={14} /></button>
@@ -568,7 +570,7 @@ export function FileSidebar({ rootPath, open, snapshot, planTabRequest = 0, onCl
                 {snapshot.gitStatus?.changes.length ? <div className="file-change-section-heading"><span>更改</span><strong>{unstagedGitChanges.length}</strong></div> : null}
                 {renderGitChanges(unstagedGitChangeTree, 0, 'unstaged')}
               </div>
-              {snapshot.selectedGitPath ? <div className="file-change-diff"><div className="file-change-diff-head"><span>{snapshot.gitDiffLoading ? '正在加载 diff…' : snapshot.gitDiff?.path}</span><small>{snapshot.selectedGitArea === 'staged' ? '暂存区' : '工作区'}</small></div>{!snapshot.gitDiffLoading && snapshot.gitDiff ? <pre>{snapshot.gitDiff.diff || '新建的未跟踪文件或二进制文件没有可展示的文本 diff。'}</pre> : null}</div> : null}
+              {snapshot.selectedGitPath ? <div className="file-change-diff"><div className="file-change-diff-head"><span>{snapshot.gitDiffLoading ? '正在加载 diff…' : snapshot.gitDiff?.path}</span><small>{snapshot.selectedGitArea === 'staged' ? '暂存区' : '工作区'}</small></div>{!snapshot.gitDiffLoading && snapshot.gitDiff ? (snapshot.gitDiff.diff ? <DiffView diff={snapshot.gitDiff.diff} className="file-change-diff-body" /> : <pre>新建的未跟踪文件或二进制文件没有可展示的文本 diff。</pre>) : null}</div> : null}
             </div>
           ) : tab === 'terminal' ? (
             <div className="file-terminal-view" id="file-sidebar-panel-terminal" role="tabpanel" aria-labelledby="file-sidebar-tab-terminal">

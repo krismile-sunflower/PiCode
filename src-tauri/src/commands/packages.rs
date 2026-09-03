@@ -65,6 +65,7 @@ pub async fn install_pi_package(
     request: ManagePiPackageRequest,
 ) -> Result<PiPackagesCatalog, String> {
     let source = validate_source(&request.source)?;
+    crate::audit::ok("package.install", serde_json::json!({ "source": &source }));
     run_pi_package_command(&app, &["install".into(), source])?;
     list_pi_packages().await
 }
@@ -75,6 +76,7 @@ pub async fn remove_pi_package(
     request: ManagePiPackageRequest,
 ) -> Result<PiPackagesCatalog, String> {
     let source = validate_source(&request.source)?;
+    crate::audit::ok("package.remove", serde_json::json!({ "source": &source }));
     run_pi_package_command(&app, &["remove".into(), source])?;
     list_pi_packages().await
 }

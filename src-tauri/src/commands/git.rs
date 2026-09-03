@@ -282,6 +282,7 @@ pub async fn get_git_file_diff(
     path: String,
     file_path: String,
     diff_mode: Option<String>,
+    base_ref: Option<String>,
 ) -> Result<GitFileDiff, String> {
     tokio::task::spawn_blocking(move || {
         let root = repository_root(path)?;
@@ -305,6 +306,16 @@ pub async fn get_git_file_diff(
                 "读取工作区差异",
                 git_output(&root, &["diff", "--no-ext-diff", "--", &file_path])?,
             )?,
+            // "Everything this turn changed" and "everything since the base
+            // branch" are the two review scopes that matter more than the
+            // index/worktree split, so both are first-class here.
+            Some("range") => {
+                let base = validated_git_ref(base_ref.as_deref())?;
+                require_success(
+                    "读取范围差异",
+                    git_output(&root, &["diff", "--no-ext-diff", &base, "--", &file_path])?,
+                )?
+            }
             _ => require_success(
                 "读取文件差异",
                 git_output(&root, &["diff", "--no-ext-diff", "HEAD", "--", &file_path])?,
@@ -419,6 +430,7 @@ pub async fn pull_git(path: String) -> Result<GitOperationResult, String> {
             return Err("当前分支未设置上游分支，暂时无法拉取。".to_string());
         }
         let output = require_success("拉取", git_output(&root, &["pull", "--ff-only"])?)?;
+        crate::audit::ok("git.pull", serde_json::json!({ "root": root.display().to_string() }));
         Ok(operation_result("拉取完成", output))
     })
     .await
@@ -440,6 +452,10 @@ pub async fn commit_git(path: String, message: String) -> Result<GitOperationRes
             "提交",
             git_output(&root, &["commit", "--message", message])?,
         )?;
+        crate::audit::ok(
+            "git.commit",
+            serde_json::json!({ "root": root.display().to_string(), "message": message }),
+        );
         Ok(operation_result("提交完成", output))
     })
     .await
@@ -474,15 +490,180 @@ pub async fn push_git(path: String) -> Result<GitOperationResult, String> {
                 git_output(&root, &["push", "--set-upstream", "origin", &branch])?,
             )?
         };
+        crate::audit::ok(
+            "git.push",
+            serde_json::json!({ "root": root.display().to_string(), "branch": branch }),
+        );
         Ok(operation_result("推送完成", output))
     })
     .await
     .map_err(|error| error.to_string())?
 }
 
+/// Accept only a plain Git revision: it is interpolated into an argv slot that
+/// also accepts options, so a value like `--output=x` must never get through.
+fn validated_git_ref(value: Option<&str>) -> Result<String, String> {
+    let value = value.map(str::trim).unwrap_or_default();
+    if value.is_empty() {
+        return Err("缺少比较基线。".to_string());
+    }
+    let rejected = ['~', '^', ':', '\\', '"', '\''];
+    if value.len() > 200
+        || value.starts_with('-')
+        || value.contains(char::is_whitespace)
+        || value.contains("..")
+        || value.contains(rejected)
+    {
+        return Err(format!("无效的 Git 引用：{value}"));
+    }
+    Ok(value.to_string())
+}
+
+/// Local and remote branch names — the candidates for "compare with base
+/// branch" in the review panel.
+#[tauri::command]
+pub async fn list_git_branches(path: String) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let root = repository_root(path)?;
+        let mut names: Vec<String> = Vec::new();
+        for scope in [
+            ["branch", "--sort=-committerdate", "--format=%(refname:short)"],
+            ["branch", "--remotes", "--format=%(refname:short)"],
+        ] {
+            if let Some(text) = optional_git_text(&root, &scope) {
+                for line in text.lines() {
+                    let name = line.trim();
+                    if name.is_empty() || name.contains("HEAD ->") {
+                        continue;
+                    }
+                    if !names.iter().any(|item| item == name) {
+                        names.push(name.to_string());
+                    }
+                }
+            }
+        }
+        Ok(names)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Snapshot the working tree as a dangling commit and return its id.
+///
+/// `git stash create` writes a commit object without touching the index, the
+/// worktree, or the stash list, which makes it a safe marker for "what this
+/// agent turn started from". A clean tree produces nothing, so HEAD is used.
+#[tauri::command]
+pub async fn create_git_snapshot(path: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let root = repository_root(path)?;
+        if !has_head(&root) {
+            return Ok(String::new());
+        }
+        Ok(optional_git_text(&root, &["stash", "create"])
+            .or_else(|| optional_git_text(&root, &["rev-parse", "HEAD"]))
+            .unwrap_or_default())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Apply one hunk-sized patch produced by the review panel.
+///
+/// The patch is piped to `git apply` on stdin rather than written to a file,
+/// and the `-R` / `--cached` combination decides whether this stages, unstages
+/// or reverts the selected hunk.
+#[tauri::command]
+pub async fn apply_git_patch(
+    path: String,
+    patch: String,
+    reverse: bool,
+    cached: bool,
+) -> Result<GitOperationResult, String> {
+    tokio::task::spawn_blocking(move || {
+        let root = repository_root(path)?;
+        if patch.trim().is_empty() {
+            return Err("补丁内容为空。".to_string());
+        }
+        if patch.len() > 4_000_000 {
+            return Err("补丁过大，请改用整文件操作。".to_string());
+        }
+        // No `--recount`: the hunk headers are copied verbatim from Git's own
+        // diff output, and `--recount` actually rejects such patches when a
+        // single hunk is lifted out of a multi-hunk file.
+        let mut args = vec!["apply"];
+        if cached {
+            args.push("--cached");
+        }
+        if reverse {
+            args.push("-R");
+        }
+        let output = require_success(
+            if reverse { "撤销片段" } else { "应用片段" },
+            git_stdin_output(&root, &args, &patch)?,
+        )?;
+        crate::audit::ok(
+            "git.apply_patch",
+            serde_json::json!({
+                "root": root.display().to_string(),
+                "reverse": reverse,
+                "cached": cached,
+                "bytes": patch.len(),
+            }),
+        );
+        Ok(operation_result(
+            if reverse { "已撤销所选片段" } else { "已应用所选片段" },
+            output,
+        ))
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn git_stdin_output(root: &Path, args: &[&str], stdin_text: &str) -> Result<Output, String> {
+    use std::io::Write as _;
+    use std::process::Stdio;
+
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("无法运行 Git：{error}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| "无法向 Git 写入补丁".to_string())?
+        .write_all(stdin_text.as_bytes())
+        .map_err(|error| format!("写入补丁失败：{error}"))?;
+    child
+        .wait_with_output()
+        .map_err(|error| format!("无法运行 Git：{error}"))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{branch_from_header, validated_file_paths};
+    use super::{branch_from_header, validated_file_paths, validated_git_ref};
+
+    #[test]
+    fn git_refs_cannot_smuggle_options_or_shell_metacharacters() {
+        assert!(validated_git_ref(Some("main")).is_ok());
+        assert!(validated_git_ref(Some("origin/main")).is_ok());
+        assert!(validated_git_ref(Some("3f1a9c2")).is_ok());
+        assert!(validated_git_ref(Some("--output=/tmp/x")).is_err());
+        assert!(validated_git_ref(Some("main..HEAD")).is_err());
+        assert!(validated_git_ref(Some("main; rm -rf /")).is_err());
+        assert!(validated_git_ref(None).is_err());
+    }
 
     #[test]
     fn parses_branch_headers_with_tracking_state() {

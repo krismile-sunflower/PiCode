@@ -12,6 +12,7 @@ import {
   type SubagentChild,
 } from '../lib/subagents';
 import { Icon } from './Icon';
+import { confirmDialog } from './ConfirmDialog';
 import { CopyMessageButton, Markdown } from './Markdown';
 
 function usageText(usage?: Usage): string {
@@ -112,10 +113,24 @@ function Welcome() {
             </button>
           ))}
         </div>
+        <div className="welcome-capabilities" aria-label="可用能力">
+          <span><Icon name="changes" width={12} height={12} />⌘⇧G 审阅 Git 变更</span>
+          <span><Icon name="shield" width={12} height={12} />设置里可切换请求确认 / 只读 / 完全访问</span>
+          <span><Icon name="check" width={12} height={12} />计划模式：先确认步骤再执行</span>
+          <span><Icon name="image" width={12} height={12} />可直接粘贴或拖入截图</span>
+        </div>
         <div className="shortcuts-hint" aria-label="键盘快捷键">
           <span><kbd>/</kbd> 聚焦输入框</span>
           <span><kbd>⌘K</kbd> 打开命令</span>
+          <span><kbd>↑</kbd> 上一条输入</span>
           <span><kbd>Esc</kbd> 停止生成</span>
+          <button
+            className="shortcuts-hint-more"
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('pi-studio:show-shortcuts'))}
+          >
+            <kbd>⌘/</kbd> 全部快捷键
+          </button>
         </div>
       </div>
     </section>
@@ -137,7 +152,9 @@ function ErrorMessage({ message, onDelete }: { message: RenderedMessage; onDelet
       {canDelete ? (
         <div className="message-actions">
           <button className="message-delete-btn" type="button" aria-label="删除这条消息" title="删除这条消息" disabled={deleting} onClick={async () => {
-            if (!message.sessionEntryId || !window.confirm('删除这条消息？删除后会同步修改会话上下文。')) return;
+            if (!message.sessionEntryId) return;
+                const confirmed = await confirmDialog({ title: '删除这条消息？', message: '删除后会同步修改会话上下文。' });
+                if (!confirmed) return;
             setDeleting(true);
             await onDelete?.(message.sessionEntryId);
             setDeleting(false);
@@ -151,24 +168,34 @@ function ErrorMessage({ message, onDelete }: { message: RenderedMessage; onDelet
 function MessageItem({
   message,
   editable,
+  regenerable,
   onDelete,
   onEdit,
+  onFork,
+  onRegenerate,
   onElementRef,
 }: {
   message: RenderedMessage;
+  regenerable?: boolean;
+  onRegenerate?(): void;
+  onFork?(entryId: string): void;
   editable?: boolean;
   onDelete?(entryId: string): Promise<boolean>;
   onEdit?(message: RenderedMessage): void;
   onElementRef?(element: HTMLDivElement | null): void;
 }) {
   const [deleting, setDeleting] = useState(false);
-  if (message.role === 'system' && message.content === '__PI_STUDIO_WELCOME__') return <Welcome />;
+  if (message.welcome) return <Welcome />;
   if (message.role === 'error') return <ErrorMessage message={message} onDelete={onDelete} />;
   if (message.role === 'system') return <div className="system-message">{message.content}</div>;
 
   const hasUsage = Boolean(usageText(message.usage));
   const canDelete = Boolean(onDelete && message.history && message.sessionEntryId && !message.streaming);
   const canEdit = Boolean(editable && onEdit && message.history && message.sessionEntryId && !message.streaming);
+  // Regeneration replays the previous user turn, so it only makes sense on the
+  // assistant reply that is already the end of the transcript.
+  const canRegenerate = Boolean(regenerable && message.role === 'assistant' && message.history && !message.streaming);
+  const canFork = Boolean(onFork && message.history && message.sessionEntryId && !message.streaming);
   const canCopy = Boolean(
     !message.streaming &&
     message.content &&
@@ -198,9 +225,31 @@ function MessageItem({
           <span className={message.streaming ? 'streaming-text' : undefined}>{message.content}</span>
         )}
       </div>
-      {canCopy || canDelete || canEdit ? (
+      {canCopy || canDelete || canEdit || canRegenerate || canFork ? (
         <div className="message-actions">
           {canCopy ? <CopyMessageButton text={message.content} /> : null}
+          {canFork ? (
+            <button
+              className="message-edit-btn"
+              type="button"
+              aria-label="从这条消息分支出新会话"
+              title="从这里分支：复制到此为止的对话为新会话"
+              onClick={() => message.sessionEntryId && onFork?.(message.sessionEntryId)}
+            >
+              <Icon name="branch" width={12} height={12} />
+            </button>
+          ) : null}
+          {canRegenerate ? (
+            <button
+              className="message-edit-btn"
+              type="button"
+              aria-label="重新生成这条回复"
+              title="重新生成（会重放上一条用户消息）"
+              onClick={() => onRegenerate?.()}
+            >
+              <Icon name="refresh" width={12} height={12} />
+            </button>
+          ) : null}
           {canEdit ? (
             <button className="message-edit-btn" type="button" aria-label="重新编辑这条消息" title="重新编辑并发送" onClick={() => onEdit?.(message)}>
               <Icon name="edit" width={12} height={12} />
@@ -214,7 +263,9 @@ function MessageItem({
               title="删除这条消息"
               disabled={deleting}
               onClick={async () => {
-                if (!message.sessionEntryId || !window.confirm('删除这条消息？删除后会同步修改会话上下文。')) return;
+                if (!message.sessionEntryId) return;
+                const confirmed = await confirmDialog({ title: '删除这条消息？', message: '删除后会同步修改会话上下文。' });
+                if (!confirmed) return;
                 setDeleting(true);
                 await onDelete?.(message.sessionEntryId);
                 setDeleting(false);
@@ -365,9 +416,7 @@ function SubagentCard({ tool }: { tool: ToolExecution }) {
         {!run.live && running ? <div className="subagent-note">正在启动子代理…</div> : null}
         {run.asyncId ? <div className="subagent-note">后台运行 ID：<code>{run.asyncId}</code></div> : null}
         {/* Show the raw result unless every child already carries its own output (live runs). */}
-        {tool.output && !run.children.some((child) => child.output) ? (
-          <div className="tool-output-wrapper"><div className="tool-output">{tool.output}</div></div>
-        ) : null}
+        {tool.output && !run.children.some((child) => child.output) ? <ToolOutput output={tool.output} /> : null}
       </div>
     </div>
   );
@@ -467,9 +516,49 @@ function ToolCard({ tool }: { tool: ToolExecution }) {
         {!isEdit && !terminalTool && Object.keys(tool.args).length ? (
           <div className="tool-args">{JSON.stringify(tool.args, null, 2)}</div>
         ) : null}
-        <div className="tool-output-wrapper">
-          <div className="tool-output">{tool.output}</div>
-        </div>
+        <ToolOutput output={tool.output} />
+      </div>
+    </div>
+  );
+}
+
+/** Above this, a tool output is collapsed until the user asks for the rest. */
+const OUTPUT_LINE_LIMIT = 400;
+const OUTPUT_CHAR_LIMIT = 40_000;
+
+/**
+ * Tool output that stays bounded.
+ *
+ * A `find` over a large repo or a verbose test run used to render every line
+ * into the DOM, which froze the timeline and pushed the composer off screen.
+ * The tail is what matters after a long run, so that is what is kept.
+ */
+function ToolOutput({ output }: { output: string }) {
+  const [full, setFull] = useState(false);
+  const lines = useMemo(() => output.split('\n'), [output]);
+  const oversized = lines.length > OUTPUT_LINE_LIMIT || output.length > OUTPUT_CHAR_LIMIT;
+
+  if (!oversized || full) {
+    return (
+      <div className="tool-output-wrapper">
+        <div className="tool-output">{output}</div>
+        {oversized ? (
+          <button className="tool-output-toggle" type="button" onClick={() => setFull(false)}>收起（共 {lines.length} 行）</button>
+        ) : null}
+      </div>
+    );
+  }
+
+  const visible = lines.slice(-OUTPUT_LINE_LIMIT).join('\n').slice(-OUTPUT_CHAR_LIMIT);
+  return (
+    <div className="tool-output-wrapper">
+      <div className="tool-output-truncated">
+        已省略前 {Math.max(0, lines.length - OUTPUT_LINE_LIMIT)} 行，显示最后 {Math.min(lines.length, OUTPUT_LINE_LIMIT)} 行
+      </div>
+      <div className="tool-output">{visible}</div>
+      <div className="tool-output-actions">
+        <button className="tool-output-toggle" type="button" onClick={() => setFull(true)}>显示全部（{lines.length} 行）</button>
+        <button className="tool-output-toggle" type="button" onClick={() => void navigator.clipboard.writeText(output)}>复制全部</button>
       </div>
     </div>
   );
@@ -483,6 +572,14 @@ function optionValue(option: string | { label: string; value: unknown }): unknow
   return typeof option === 'string' ? option : option.value;
 }
 
+/** Unanswered permission prompts fail closed after this long. */
+const PERMISSION_TIMEOUT_SECONDS = 300;
+
+function formatCountdown(seconds: number): string {
+  const safe = Math.max(0, seconds);
+  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
+}
+
 function PermissionRequestCard({
   request,
   onRespond,
@@ -491,6 +588,7 @@ function PermissionRequestCard({
   onRespond(request: ExtensionUiRequest, response: Record<string, unknown>): void;
 }) {
   const [responding, setResponding] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(PERMISSION_TIMEOUT_SECONDS);
   const { action, detail } = permissionRequestDetails(request);
   const options = [...(request.options || [])].sort((left, right) => {
     const leftDenied = optionLabel(left).includes('拒绝');
@@ -498,13 +596,58 @@ function PermissionRequestCard({
     return leftDenied === rightDenied ? 0 : leftDenied ? -1 : 1;
   });
 
-  useEffect(() => setResponding(false), [request.id, request.requestId, request.title]);
+  useEffect(() => {
+    setResponding(false);
+    setSecondsLeft(PERMISSION_TIMEOUT_SECONDS);
+  }, [request.id, request.requestId, request.title]);
 
-  const respond = (option: string | { label: string; value: unknown }) => {
-    if (responding) return;
+  const respond = (option: string | { label: string; value: unknown } | undefined) => {
+    if (responding || !option) return;
     setResponding(true);
     onRespond(request, { value: optionValue(option) });
   };
+
+  const find = (predicate: (label: string) => boolean) => options.find((option) => predicate(optionLabel(option)));
+  const denyOption = find((label) => label.includes('拒绝'));
+  const sessionOption = find((label) => label.includes('本会话'));
+  const onceOption = find((label) => !label.includes('拒绝') && !label.includes('本会话'));
+
+  // An unanswered prompt must not sit open forever: an unattended machine
+  // should end up denying, never waiting for someone to walk back and click.
+  useEffect(() => {
+    if (responding) return;
+    const timer = window.setInterval(() => {
+      setSecondsLeft((value) => {
+        if (value <= 1) {
+          window.clearInterval(timer);
+          respond(denyOption);
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responding, request.id, request.requestId, denyOption]);
+
+  useEffect(() => {
+    if (responding) return;
+    const onKey = (event: KeyboardEvent) => {
+      const accel = event.metaKey || event.ctrlKey;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        respond(denyOption);
+        return;
+      }
+      if (accel && event.key === 'Enter') {
+        event.preventDefault();
+        respond(event.shiftKey ? sessionOption || onceOption : onceOption);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responding, request.id, request.requestId, denyOption, onceOption, sessionOption]);
 
   return (
     <section className="permission-request-card" role="region" aria-label="Pi 工具执行授权">
@@ -515,10 +658,14 @@ function PermissionRequestCard({
             <span className="permission-request-eyebrow">需要你的确认</span>
             <h3>允许 Pi {action}？</h3>
           </div>
-          <span className="permission-request-status"><span />等待授权</span>
+          <span className={`permission-request-status${secondsLeft <= 30 ? ' urgent' : ''}`}>
+            <span />{responding ? '已提交' : `${formatCountdown(secondsLeft)} 后自动拒绝`}
+          </span>
         </div>
         {detail ? <pre className="permission-request-detail"><code>{detail}</code></pre> : null}
-        <p className="permission-request-note">授权仅作用于当前操作；“本会话允许”会在当前项目中放行同类操作。</p>
+        <p className="permission-request-note">
+          授权仅作用于当前操作；“本会话允许”只覆盖<strong>当前会话</strong>内的同一命令族或同一文件，换会话即失效。
+        </p>
         <div className="permission-request-actions">
           {options.map((option) => {
             const label = optionLabel(option);
@@ -534,9 +681,11 @@ function PermissionRequestCard({
                 type="button"
                 disabled={responding}
                 key={label}
+                aria-label={displayLabel}
                 onClick={() => respond(option)}
               >
                 {displayLabel}
+                <kbd className="permission-request-key" aria-hidden="true">{kind === 'deny' ? 'Esc' : kind === 'session' ? '⌘⇧⏎' : '⌘⏎'}</kbd>
               </button>
             );
           })}
@@ -568,6 +717,8 @@ export function MessageList({
   extensionUiRequest,
   onDeleteMessage,
   onEditMessage,
+  onForkMessage,
+  onRegenerate,
   onRespondToExtension,
 }: {
   timeline: TimelineItem[];
@@ -576,6 +727,8 @@ export function MessageList({
   extensionUiRequest?: ExtensionUiRequest | null;
   onDeleteMessage?(entryId: string): Promise<boolean>;
   onEditMessage?(message: RenderedMessage): void;
+  onForkMessage?(entryId: string): void;
+  onRegenerate?(): void;
   onRespondToExtension?(request: ExtensionUiRequest, response: Record<string, unknown>): void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -589,6 +742,10 @@ export function MessageList({
   const permissionRequestKey = permissionRequest?.id || permissionRequest?.requestId || permissionRequest?.title || '';
   const lastUserMessageId = useMemo(
     () => [...timeline].reverse().find((item) => item.kind === 'message' && item.message.role === 'user')?.id,
+    [timeline],
+  );
+  const lastAssistantMessageId = useMemo(
+    () => [...timeline].reverse().find((item) => item.kind === 'message' && item.message.role === 'assistant')?.id,
     [timeline],
   );
   const conversationAnchors = useMemo(
@@ -747,7 +904,10 @@ export function MessageList({
               key={item.id}
               message={item.message}
               editable={item.id === lastUserMessageId && !streaming}
+              regenerable={item.id === lastAssistantMessageId && !streaming}
               onDelete={onDeleteMessage}
+              onFork={onForkMessage}
+              onRegenerate={onRegenerate}
               onEdit={onEditMessage}
               onElementRef={item.message.role === 'user' ? (node) => registerConversationNode(item.message.id, node) : undefined}
             />

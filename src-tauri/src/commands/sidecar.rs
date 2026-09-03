@@ -1,9 +1,11 @@
+use std::collections::BTreeSet;
 use std::env;
 use std::fs::{self, create_dir_all, File};
 use std::io::Write;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -185,6 +187,10 @@ pub async fn update_pi_runtime(
         sleep(Duration::from_millis(500)).await;
     }
 
+    crate::audit::ok(
+        "runtime.update",
+        serde_json::json!({ "channel": &channel, "previousVersion": &previous }),
+    );
     let result = match channel.as_str() {
         "system" => update_system_pi().await,
         "bundled" => update_bundled_pi(&app).await,
@@ -374,6 +380,15 @@ pub async fn start_pi_process(
         .map_err(lock_err)?
         .insert(pid, child);
     set_active_instance(&state, instance.clone())?;
+    crate::audit::ok(
+        "sidecar.start",
+        serde_json::json!({
+            "pid": pid,
+            "port": port,
+            "transport": "mirror",
+            "projectPath": instance.project_path,
+        }),
+    );
 
     monitor_pi_process(app.clone(), pid);
 
@@ -498,6 +513,14 @@ async fn start_pi_rpc_process(
         .map_err(lock_err)?
         .insert(pid, child);
     set_active_instance(&state, instance.clone())?;
+    crate::audit::ok(
+        "sidecar.start",
+        serde_json::json!({
+            "pid": pid,
+            "transport": "rpc",
+            "projectPath": &instance.project_path,
+        }),
+    );
     crate::rpc::client::register_rpc_io(
         app.clone(),
         state.inner(),
@@ -553,6 +576,40 @@ pub fn stop_pi_by_state(state: &State<'_, AppState>, pid: Option<u32>) -> Result
     stop_pi_inner(state.inner(), pid)
 }
 
+/// How long a Pi child gets to flush its session file and exit on its own.
+const SHUTDOWN_GRACE: Duration = Duration::from_millis(1_500);
+
+/// Ask a Pi child to exit, then kill it if it will not.
+///
+/// `clear_rpc_process` has already dropped its stdin, which is Pi's own exit
+/// signal; on Unix we additionally send SIGTERM. Killing immediately (the old
+/// behaviour) could cut a session JSONL line in half mid-write.
+fn terminate_child(pid: u32, child: &mut std::process::Child) {
+    #[cfg(unix)]
+    {
+        let mut signal = Command::new("kill");
+        signal.args(["-TERM", &pid.to_string()]);
+        let _ = signal.status();
+    }
+    #[cfg(not(unix))]
+    let _ = pid;
+
+    let deadline = std::time::Instant::now() + SHUTDOWN_GRACE;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) => {}
+            Err(_) => break,
+        }
+        if std::time::Instant::now() >= deadline {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 fn stop_pi_inner(state: &AppState, pid: Option<u32>) -> Result<(), String> {
     let active_pid = state.active_pid.lock().map_err(lock_err)?.to_owned();
 
@@ -567,16 +624,44 @@ fn stop_pi_inner(state: &AppState, pid: Option<u32>) -> Result<(), String> {
         .map_err(lock_err)?
         .remove(&target_pid)
     {
-        let _ = child.kill();
-        let _ = child.wait();
+        terminate_child(target_pid, &mut child);
     }
     crate::settings::remove_runtime_instance(target_pid);
-
+    if let Some(port) = port_of_instance(target_pid) {
+        release_port(port);
+    }
     if active_pid == Some(target_pid) {
         *state.active_pid.lock().map_err(lock_err)? = None;
         *state.active_instance.lock().map_err(lock_err)? = None;
     }
     Ok(())
+}
+
+/// Kill every Pi child this process started.
+///
+/// Without this, closing the window on Windows leaves orphaned `pi` processes
+/// holding their mirror ports, so the next launch drifts to a higher port and
+/// the machine slowly accumulates zombies.
+pub fn shutdown_all(state: &AppState) {
+    let children = match state.pi_children.lock() {
+        Ok(mut children) => std::mem::take(&mut *children),
+        Err(poisoned) => std::mem::take(&mut *poisoned.into_inner()),
+    };
+    for (pid, mut child) in children {
+        crate::rpc::client::clear_rpc_process(state, pid);
+        terminate_child(pid, &mut child);
+        if let Some(port) = port_of_instance(pid) {
+            release_port(port);
+        }
+        crate::settings::remove_runtime_instance(pid);
+        crate::audit::ok("sidecar.shutdown", serde_json::json!({ "pid": pid }));
+    }
+    if let Ok(mut active) = state.active_pid.lock() {
+        *active = None;
+    }
+    if let Ok(mut instance) = state.active_instance.lock() {
+        *instance = None;
+    }
 }
 
 #[tauri::command]
@@ -1085,6 +1170,28 @@ fn timestamp_string() -> String {
         .unwrap_or_else(|_| "0".into())
 }
 
+/// Crash-restart budget: at most this many automatic restarts per window.
+const RESTART_LIMIT: usize = 2;
+const RESTART_WINDOW: Duration = Duration::from_secs(600);
+
+/// Timestamps of automatic restarts, used to avoid a restart loop.
+static RESTART_HISTORY: Mutex<Vec<std::time::Instant>> = Mutex::new(Vec::new());
+
+/// Whether an automatic restart is still within budget, recording it if so.
+fn claim_restart_budget() -> bool {
+    let mut history = match RESTART_HISTORY.lock() {
+        Ok(history) => history,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let now = std::time::Instant::now();
+    history.retain(|stamp| now.duration_since(*stamp) < RESTART_WINDOW);
+    if history.len() >= RESTART_LIMIT {
+        return false;
+    }
+    history.push(now);
+    true
+}
+
 fn monitor_pi_process(app: AppHandle, pid: u32) {
     tokio::spawn(async move {
         loop {
@@ -1111,8 +1218,17 @@ fn monitor_pi_process(app: AppHandle, pid: u32) {
             };
 
             if let Some(status) = exited {
+                // Capture what this process was working on before the record
+                // disappears, so the restart can land in the same project.
+                let previous = crate::settings::load_runtime_instances()
+                    .into_iter()
+                    .find(|instance| instance.pid == pid);
                 crate::settings::remove_runtime_instance(pid);
-                if state.active_pid.lock().ok().and_then(|pid| *pid) == Some(pid) {
+                if let Some(port) = previous.as_ref().and_then(|instance| instance.port) {
+                    release_port(port);
+                }
+                let was_active = state.active_pid.lock().ok().and_then(|pid| *pid) == Some(pid);
+                if was_active {
                     if let Ok(mut active_pid) = state.active_pid.lock() {
                         *active_pid = None;
                     }
@@ -1120,6 +1236,11 @@ fn monitor_pi_process(app: AppHandle, pid: u32) {
                         *active = None;
                     }
                 }
+                crate::audit::record(
+                    "sidecar.exited",
+                    "error",
+                    serde_json::json!({ "pid": pid, "status": status }),
+                );
                 let _ = app.emit(
                     "tau-pi-status",
                     serde_json::json!({
@@ -1127,11 +1248,48 @@ fn monitor_pi_process(app: AppHandle, pid: u32) {
                         "exitStatus": status,
                     }),
                 );
+
+                // An agent client that goes dead on a crash and waits for the
+                // user to notice is worse than one that quietly comes back.
+                // The budget stops a broken runtime from looping forever.
+                let restarted = if was_active && claim_restart_budget() {
+                    match previous {
+                        Some(instance) => {
+                            sleep(Duration::from_millis(600)).await;
+                            let request = StartPiRequest {
+                                path: Some(instance.project_path.clone()),
+                                no_folder: Some(instance.no_folder),
+                                port: None,
+                            };
+                            let handle = app.clone();
+                            let outcome = start_pi_process(handle.clone(), handle.state::<AppState>(), request).await;
+                            match outcome {
+                                Ok(_) => {
+                                    crate::audit::ok(
+                                        "sidecar.auto_restart",
+                                        serde_json::json!({ "previousPid": pid, "projectPath": instance.project_path }),
+                                    );
+                                    true
+                                }
+                                Err(error) => {
+                                    crate::settings::append_desktop_log(format!(
+                                        "auto restart failed after pid {pid} exited: {error}"
+                                    ));
+                                    false
+                                }
+                            }
+                        }
+                        None => false,
+                    }
+                } else {
+                    false
+                };
+
                 let _ = app
                     .notification()
                     .builder()
                     .title("PiCode")
-                    .body("Pi process exited")
+                    .body(if restarted { "Pi 意外退出，已自动重启。" } else { "Pi 进程已退出。" })
                     .auto_cancel()
                     .show();
                 break;
@@ -1206,13 +1364,43 @@ fn set_active_instance(state: &State<'_, AppState>, instance: PiInstance) -> Res
     Ok(())
 }
 
+/// Ports handed out but not yet bound by the child process.
+///
+/// Probing with `TcpListener::bind` and then dropping the listener leaves a
+/// window in which a second window (or a second `start_pi`) probes the same
+/// free port and both children race for it. Reserving the number here closes
+/// the in-process half of that race; the bind probe still covers other apps.
+static RESERVED_PORTS: Mutex<BTreeSet<u16>> = Mutex::new(BTreeSet::new());
+
 fn allocate_port(start: u16) -> u16 {
-    for port in start..start + 100 {
+    let mut reserved = match RESERVED_PORTS.lock() {
+        Ok(reserved) => reserved,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    for port in start..start.saturating_add(100) {
+        if reserved.contains(&port) {
+            continue;
+        }
         if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            reserved.insert(port);
             return port;
         }
     }
     start
+}
+
+/// Give a reserved port back once its child has exited (or failed to start).
+pub fn release_port(port: u16) {
+    if let Ok(mut reserved) = RESERVED_PORTS.lock() {
+        reserved.remove(&port);
+    }
+}
+
+fn port_of_instance(pid: u32) -> Option<u16> {
+    crate::settings::load_runtime_instances()
+        .into_iter()
+        .find(|instance| instance.pid == pid)
+        .and_then(|instance| instance.port)
 }
 
 async fn fetch_latest_pi_version() -> Option<String> {
@@ -1642,4 +1830,27 @@ fn is_version_newer(latest: &str, current: &str) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod port_tests {
+    use super::*;
+
+    #[test]
+    fn allocating_twice_never_hands_out_the_same_port() {
+        // A deliberately high base keeps the test away from a running app.
+        let first = allocate_port(38_411);
+        let second = allocate_port(38_411);
+        assert_ne!(first, second);
+        release_port(first);
+        release_port(second);
+    }
+
+    #[test]
+    fn releasing_a_port_makes_it_available_again() {
+        let first = allocate_port(38_611);
+        release_port(first);
+        assert_eq!(allocate_port(38_611), first);
+        release_port(first);
+    }
 }

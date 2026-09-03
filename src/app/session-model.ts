@@ -113,8 +113,20 @@ export function buildHistoryTimeline(entries: SessionEntry[]): {
   const timeline: TimelineItem[] = [];
   let sessionTotalCost = 0;
   let lastUsage: Usage | null = null;
+  // Pi records model switches as their own entries; carrying the current one
+  // forward is what makes a per-model cost breakdown possible at all.
+  let currentModel = '';
 
   entries.forEach((entry, entryIndex) => {
+    if (entry.type === 'model_change') {
+      const change = entry as unknown as { modelId?: unknown; provider?: unknown };
+      if (typeof change.modelId === 'string' && change.modelId) {
+        currentModel = typeof change.provider === 'string' && change.provider
+          ? `${change.provider}/${change.modelId}`
+          : change.modelId;
+      }
+      return;
+    }
     if (entry.type !== 'message' || !entry.message) return;
     const message = entry.message;
     if (message.role === 'user') {
@@ -165,6 +177,7 @@ export function buildHistoryTimeline(entries: SessionEntry[]): {
             thinking: getMessageThinking(message),
             usage: message.usage,
             history: true,
+            ...(currentModel ? { model: currentModel } : {}),
           },
         });
       }

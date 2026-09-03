@@ -123,20 +123,31 @@ export function planStateFromEntries(entries: SessionEntry[]): PlanSessionState 
   return createPlanSessionState();
 }
 
+/**
+ * Marker syntax accepted from the model.
+ *
+ * The protocol is text, so it has to survive the ways a model actually writes
+ * it: a space after the colon, several step numbers in one marker, the
+ * full-width brackets and colon that Chinese-language replies produce.
+ */
+export const PLAN_MARKER_PATTERN = /[[\u3010]\s*(DONE|BLOCKED)\s*[:\uff1a]\s*([\d,\s]+?)\s*[\]\u3011]/gi;
+
 /** UI-only cleanup. The raw marker remains in Pi history for the extension. */
 export function stripPlanControlMarkers(value: string): string {
   return value
-    .replace(/[ \t]*\[(?:DONE|BLOCKED):\d+\][ \t]*/gi, '')
+    .replace(new RegExp(`[ \\t]*${PLAN_MARKER_PATTERN.source}[ \\t]*`, 'gi'), '')
     .replace(/\n{3,}/g, '\n\n')
     .trimEnd();
 }
 
 function markedStepIndexes(value: string, marker: 'DONE' | 'BLOCKED', length: number): Set<number> {
   const indexes = new Set<number>();
-  const pattern = new RegExp(`\\[${marker}:(\\d+)\\]`, 'gi');
-  for (const match of value.matchAll(pattern)) {
-    const index = Number.parseInt(match[1] || '', 10) - 1;
-    if (Number.isInteger(index) && index >= 0 && index < length) indexes.add(index);
+  for (const match of value.matchAll(new RegExp(PLAN_MARKER_PATTERN.source, 'gi'))) {
+    if ((match[1] || '').toUpperCase() !== marker) continue;
+    for (const part of (match[2] || '').split(/[,\s]+/)) {
+      const index = Number.parseInt(part, 10) - 1;
+      if (Number.isInteger(index) && index >= 0 && index < length) indexes.add(index);
+    }
   }
   return indexes;
 }

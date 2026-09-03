@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AppSnapshot,
+  Automation,
   GitChange,
   GitChangeArea,
+  GitReviewScope,
+  ModelRole,
   ModelsConfig,
   ModelsProviderConfig,
   ModelsProviderModel,
@@ -14,9 +17,12 @@ import type {
 } from '../lib/types';
 import { basename, formatRelativeTime } from '../lib/utils';
 import { applyTheme, getCurrentTheme, themes } from '../lib/theme';
+import { invoke } from '@tauri-apps/api/core';
 import { controller } from '../app/controller';
 import { notify } from '../app/controller-contracts';
 import { Icon } from './Icon';
+import { confirmDialog } from './ConfirmDialog';
+import { DiffView } from './DiffView';
 import { DEFAULT_REASONING_PROFILE, migrateReasoningConfig, PI_REASONING_LEVELS, REASONING_UI_LABELS } from '../lib/reasoning';
 
 const API_OPTIONS = [
@@ -102,11 +108,11 @@ export function ProjectsView({ snapshot }: { snapshot: AppSnapshot }) {
         <div className="pane-header">
           <div className="pane-header-copy">
             <span className="eyebrow">工作区</span>
-            <h2>项目</h2>
-            <p className="pane-header-subtitle">选择一个项目启动 Pi，或进入无文件夹模式直接开始。</p>
+            <h2>项目与对话</h2>
+            <p className="pane-header-subtitle">项目绑定一个仓库，Pi 可以改代码；对话不绑定仓库，以只读方式开始。</p>
           </div>
           <div className="pane-header-actions">
-            <button className="launcher-action" type="button" onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchNoFolder()}>无文件夹模式</button>
+            <button className="launcher-action" type="button" onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}>新建对话</button>
             <button className="launcher-action primary" type="button" onClick={() => void controller.addProject()}>添加项目</button>
             {snapshot.hasActivePiSession ? <button className="pane-close" type="button" title="返回聊天" aria-label="返回聊天" onClick={() => controller.returnToChat()}><Icon name="close" width={16} height={16} /></button> : null}
           </div>
@@ -117,17 +123,20 @@ export function ProjectsView({ snapshot }: { snapshot: AppSnapshot }) {
           <input type="search" placeholder="搜索项目名称或路径" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
         <div className="launcher-grid">
-          {!query || '无文件夹 no folder'.includes(query.toLowerCase()) ? (
+          {!query || '对话 chat 无文件夹 no folder'.includes(query.toLowerCase()) ? (
             <article className={`launcher-card no-folder${snapshot.noFolderActive ? ' active' : ''}`}>
-              <div className="launcher-card-icon"><Icon name="plus" width={20} height={20} /></div>
+              <div className="launcher-card-icon"><Icon name="eye" width={20} height={20} /></div>
               <div className="launcher-card-main">
-                <div className="launcher-card-name">无文件夹模式 {snapshot.noFolderActive ? <span className="launcher-live">运行中</span> : null}</div>
-                <div className="launcher-card-path">使用 PiCode 专属目录，不关联本地项目</div>
-                <div className="launcher-card-meta"><span>适合快速提问和临时任务</span></div>
+                <div className="launcher-card-name">对话 {snapshot.noFolderActive ? <span className="launcher-live">运行中</span> : null}</div>
+                {/* Projects and chats are a deliberate split: a project is bound
+                    to a repository and may change it; a chat is bound to
+                    nothing and starts read-only. */}
+                <div className="launcher-card-path">不绑定仓库，以只读的计划模式开始</div>
+                <div className="launcher-card-meta"><span>适合提问、调研和临时任务</span></div>
               </div>
               <div className="launcher-card-actions">
-                <button className="launcher-card-open" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchNoFolder()}>
-                  {snapshot.projectBusyPath === '__no_folder__' ? '正在启动…' : snapshot.noFolderActive ? '返回会话' : '打开'}
+                <button className="launcher-card-open" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}>
+                  {snapshot.projectBusyPath === '__no_folder__' ? '正在启动…' : snapshot.noFolderActive ? '返回会话' : '开始对话'}
                 </button>
               </div>
             </article>
@@ -183,6 +192,21 @@ function gitAreaChangeLabel(change: GitChange, area: GitChangeArea): string {
     : gitChangeLabel(' ', change.worktreeStatus);
 }
 
+const SCOPES: Array<[GitReviewScope, string, string]> = [
+  ['unstaged', '未暂存', '工作区里尚未暂存的改动'],
+  ['staged', '已暂存', '暂存区中等待提交的改动'],
+  ['head', '未提交', '相对上一次提交的全部改动'],
+  ['base', '与基线分支比', '相对所选分支的全部改动'],
+  ['turn', '本轮改动', '相对本轮任务开始时的快照'],
+];
+
+function reviewScopeLabel(scope: GitReviewScope, area: GitChangeArea | null, baseRef: string): string {
+  if (scope === 'head') return '相对 HEAD';
+  if (scope === 'base') return `相对 ${baseRef || '基线分支'}`;
+  if (scope === 'turn') return '本轮改动';
+  return area === 'staged' ? '暂存区' : '工作区';
+}
+
 export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
   const git = snapshot.gitStatus;
   const selected = snapshot.selectedGitPath;
@@ -193,6 +217,27 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
   const [commitMessage, setCommitMessage] = useState('');
   const [gitAction, setGitAction] = useState<'pull' | 'commit' | 'push' | 'stage' | 'unstage' | null>(null);
   const busy = snapshot.gitLoading || Boolean(gitAction);
+  // Staging a hunk means applying it to the index; reverting means undoing it
+  // in the worktree. Both are only meaningful on an index-relative diff, so the
+  // range scopes (base branch / this turn) offer review notes only.
+  const rangeScope = snapshot.gitReviewScope === 'base' || snapshot.gitReviewScope === 'turn';
+  const hunkActions = rangeScope ? [] : [
+    ...(selectedArea === 'staged'
+      ? [{
+          label: '取消暂存',
+          title: '把这一段从暂存区移除',
+          run: (patch: string) => void controller.applyGitPatch(patch, { cached: true, reverse: true }),
+        }]
+      : [{
+          label: '暂存',
+          title: '只暂存这一段',
+          run: (patch: string) => void controller.applyGitPatch(patch, { cached: true }),
+        }, {
+          label: '撤销',
+          title: '丢弃这一段改动（不可恢复）',
+          run: (patch: string) => void controller.applyGitPatch(patch, { reverse: true }),
+        }]),
+  ];
   const runGitAction = async (action: 'pull' | 'commit' | 'push' | 'stage' | 'unstage', operation: () => Promise<boolean>) => {
     setGitAction(action);
     try {
@@ -223,10 +268,36 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
       <div className="pane-header changes-header">
         <div className="pane-header-copy">
           <span className="eyebrow">工作区</span>
-          <h2>Git 变更</h2>
-          <p className="pane-header-subtitle">审阅并暂存改动，再提交暂存区内容或同步当前分支。</p>
+          <h2>变更审阅</h2>
+          <p className="pane-header-subtitle">按范围审阅改动，可逐段暂存/撤销，也可逐行留下意见后交给 Pi 修改。</p>
         </div>
         <div className="pane-header-actions">
+          <div className="review-scope" role="group" aria-label="查看范围">
+            {SCOPES.map(([scope, label, hint]) => (
+              <button
+                className={`review-scope-btn${snapshot.gitReviewScope === scope ? ' active' : ''}`}
+                type="button"
+                key={scope}
+                title={hint}
+                disabled={scope === 'turn' && !snapshot.gitTurnBaseline}
+                onClick={() => void controller.setGitReviewScope(scope)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {snapshot.gitReviewScope === 'base' ? (
+            <select
+              className="review-base-select"
+              aria-label="比较基线分支"
+              value={snapshot.gitBaseRef}
+              onChange={(event) => void controller.setGitReviewScope('base', event.target.value)}
+            >
+              {(snapshot.gitBranches.length ? snapshot.gitBranches : [snapshot.gitBaseRef].filter(Boolean)).map((branch) => (
+                <option value={branch} key={branch}>{branch}</option>
+              ))}
+            </select>
+          ) : null}
           <button className="settings-action-btn" type="button" onClick={() => void controller.loadGitStatus()} disabled={busy}>
             {snapshot.gitLoading ? '刷新中…' : '刷新'}
           </button>
@@ -281,9 +352,44 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
               {snapshot.gitDiffLoading ? <div className="changes-empty">正在读取 diff…</div> : null}
               {selected && !snapshot.gitDiffLoading && snapshot.gitDiff ? (
                 <>
-                  <div className="changes-diff-header"><strong>{snapshot.gitDiff.path}</strong><span>{selectedArea === 'staged' ? '暂存区' : '工作区'}</span></div>
-                  <pre className="changes-diff">{snapshot.gitDiff.diff || '新建的未跟踪文件或二进制文件没有可展示的文本 diff。'}</pre>
+                  <div className="changes-diff-header">
+                    <strong>{snapshot.gitDiff.path}</strong>
+                    <span>{reviewScopeLabel(snapshot.gitReviewScope, selectedArea, snapshot.gitBaseRef)}</span>
+                  </div>
+                  {snapshot.gitDiff.diff ? (
+                    <DiffView
+                      diff={snapshot.gitDiff.diff}
+                      hunkActions={hunkActions}
+                      onComment={(line, text) => controller.addReviewComment({
+                        path: snapshot.gitDiff?.path || selected,
+                        line: line.line,
+                        side: line.side,
+                        code: line.code,
+                        text,
+                      })}
+                    />
+                  ) : (
+                    <div className="changes-empty">新建的未跟踪文件或二进制文件没有可展示的文本 diff。</div>
+                  )}
                 </>
+              ) : null}
+              {snapshot.reviewComments.length ? (
+                <div className="review-comments" aria-label="审阅意见">
+                  <div className="review-comments-head">
+                    <strong>审阅意见 {snapshot.reviewComments.length}</strong>
+                    <div>
+                      <button className="settings-action-btn" type="button" onClick={() => controller.clearReviewComments()}>清空</button>
+                      <button className="settings-action-btn primary" type="button" onClick={() => controller.sendReviewComments()}>交给 Pi 修改</button>
+                    </div>
+                  </div>
+                  {snapshot.reviewComments.map((comment) => (
+                    <div className="review-comment" key={comment.id}>
+                      <span className="review-comment-loc">{comment.path}:{comment.line}</span>
+                      <span className="review-comment-text">{comment.text}</span>
+                      <button className="icon-btn" type="button" aria-label="删除这条意见" onClick={() => controller.removeReviewComment(comment.id)}>×</button>
+                    </div>
+                  ))}
+                </div>
               ) : null}
             </article>
           </div>
@@ -307,10 +413,309 @@ function runtimeSource(snapshot: AppSnapshot): string {
 const SETTINGS_SECTIONS = [
   ['appearance', '外观', '主题与界面外观'],
   ['agent', '智能体', 'Pi 的思考与上下文行为'],
+  ['instructions', '项目', 'AGENTS.md 与隔离副本'],
   ['permissions', '权限', '工具执行授权与项目信任'],
   ['models', '模型', 'API 供应商、模型与推理预设'],
   ['runtime', '运行时', 'Pi 运行时、桌面端与连接'],
 ] as const;
+
+const MODEL_ROLES: Array<[ModelRole, string, string]> = [
+  ['plan', '规划', '进入计划模式时使用'],
+  ['build', '编码', '确认计划开始执行时使用'],
+  ['search', '检索', '大范围代码检索/长上下文任务'],
+];
+
+/**
+ * Model routing by task type.
+ *
+ * `models.json` already supports any provider; what was missing is the idea
+ * that different jobs deserve different models. A single-vendor client cannot
+ * offer this at all, which makes it one of the few things PiCode can do that
+ * Codex structurally cannot.
+ */
+function ModelRoutingSection({ snapshot }: { snapshot: AppSnapshot }) {
+  const routes = snapshot.settings?.modelRoutes || {};
+  const options = snapshot.models;
+
+  return (
+    <div className="pane-section">
+      <div className="pane-section-head">
+        <div>
+          <div className="pane-section-title">模型路由</div>
+          <p className="pane-section-note">按任务类型指定模型：规划用推理强的，编码用改代码稳的，检索用上下文长的。切换在对应动作发生时自动生效。</p>
+        </div>
+      </div>
+      {options.length ? MODEL_ROLES.map(([role, label, hint]) => {
+        const current = routes[role];
+        const value = current ? `${current.provider || ''}::${current.modelId}` : '';
+        return (
+          <div className="worktree-row" key={role}>
+            <div className="worktree-copy">
+              <strong>{label}</strong>
+              <span>{hint}</span>
+            </div>
+            <select
+              className="review-base-select"
+              aria-label={`${label}任务使用的模型`}
+              value={value}
+              onChange={(event) => {
+                const raw = event.target.value;
+                if (!raw) return void controller.setModelRoute(role, null);
+                const [provider = '', modelId = ''] = raw.split('::');
+                void controller.setModelRoute(role, { provider, modelId });
+              }}
+            >
+              <option value="">跟随当前模型</option>
+              {options.map((model) => (
+                <option value={`${model.provider || ''}::${model.id}`} key={`${model.provider || ''}:${model.id}`}>
+                  {model.provider ? `${model.provider} · ` : ''}{model.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      }) : <div className="settings-help">还没有加载到可用模型，请先在下方配置供应商。</div>}
+    </div>
+  );
+}
+
+/**
+ * Host-app updates.
+ *
+ * The signing key ships with the bundle (that is what makes an update
+ * verifiable), while the release feed is a setting — a fork or a self-hosted
+ * build can point somewhere else without recompiling.
+ */
+function AppUpdateSection({ snapshot }: { snapshot: AppSnapshot }) {
+  const update = snapshot.appUpdate;
+  const [endpoint, setEndpoint] = useState('');
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (window.tauDesktop.isTauri && !snapshot.appUpdate) void controller.checkAppUpdate(true);
+  }, [snapshot.appUpdate]);
+
+  useEffect(() => {
+    if (!editing) setEndpoint(String(snapshot.settings?.updateEndpoint || update?.endpoint || ''));
+  }, [editing, snapshot.settings?.updateEndpoint, update?.endpoint]);
+
+  return (
+    <div className="pane-section">
+      <div className="pane-section-head">
+        <div>
+          <div className="pane-section-title">PiCode 应用更新</div>
+          <p className="pane-section-note">安装包会用内置公钥校验签名后再执行；未通过校验的更新不会被安装。</p>
+        </div>
+        <div className="pane-section-actions">
+          <button
+            className="settings-action-btn"
+            type="button"
+            disabled={!window.tauDesktop.isTauri || snapshot.appUpdateChecking}
+            onClick={() => void controller.checkAppUpdate()}
+          >
+            {snapshot.appUpdateChecking ? '检查中…' : '检查更新'}
+          </button>
+          <button
+            className="settings-action-btn primary"
+            type="button"
+            disabled={!window.tauDesktop.isTauri || snapshot.appUpdateChecking || !update?.available}
+            onClick={() => void confirmDialog({
+              title: `安装 PiCode ${update?.newVersion}？`,
+              message: 'Windows 会在安装后自动重启；macOS / Linux 需要手动重新打开。',
+              confirmLabel: '下载并安装',
+            }).then((ok) => { if (ok) void controller.installAppUpdate(); })}
+          >
+            安装更新
+          </button>
+        </div>
+      </div>
+
+      <div className="settings-kv-grid">
+        <div className="settings-kv">
+          <span className="settings-kv-label">当前版本</span>
+          <span className="settings-kv-value">{update?.currentVersion || '未知'}</span>
+        </div>
+        <div className="settings-kv">
+          <span className="settings-kv-label">可用版本</span>
+          <span className={`settings-kv-value${update?.available ? ' warn' : update?.configured ? ' ok' : ''}`}>
+            {update?.available ? `${update.newVersion} · 可更新` : update?.configured ? '已是最新' : '未配置更新通道'}
+          </span>
+        </div>
+      </div>
+      {update?.notes ? <div className="settings-runtime-path">{update.notes}</div> : null}
+      {update?.error ? <div className="settings-runtime-warning">{update.error}</div> : null}
+
+      <div className="settings-endpoint-row">
+        <input
+          className="settings-text-input"
+          value={endpoint}
+          placeholder="发布源地址，例如 https://example.com/picode/{{target}}/{{arch}}/{{current_version}}"
+          aria-label="应用更新发布源地址"
+          onFocus={() => setEditing(true)}
+          onChange={(event) => setEndpoint(event.target.value)}
+        />
+        <button
+          className="settings-action-btn"
+          type="button"
+          disabled={!window.tauDesktop.isTauri}
+          onClick={() => { setEditing(false); void controller.setUpdateEndpoint(endpoint); }}
+        >
+          保存
+        </button>
+      </div>
+      <p className="settings-help">
+        地址需返回 Tauri updater 的 JSON 清单。签名公钥在 tauri.conf.json 的 plugins.updater.pubkey 中配置，留空则无法安装更新。
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Isolated-copy management.
+ *
+ * Worktrees are cheap to create and easy to forget; without a list the only
+ * evidence they exist is a growing directory under `~/.pi/agent/worktrees`.
+ */
+function WorktreeSection({ snapshot }: { snapshot: AppSnapshot }) {
+  const projectPath = snapshot.workspace.noFolder ? '' : snapshot.workspace.path;
+
+  useEffect(() => {
+    if (projectPath) void controller.loadWorktrees();
+  }, [projectPath]);
+
+  if (!projectPath) return null;
+
+  return (
+    <div className="pane-section">
+      <div className="pane-section-head">
+        <div>
+          <div className="pane-section-title">隔离副本（worktree）</div>
+          <p className="pane-section-note">每个副本是仓库的独立检出，用于并行任务；审阅后再把改动合并回主检出。</p>
+        </div>
+        <div className="pane-section-actions">
+          <button className="settings-action-btn" type="button" onClick={() => void controller.loadWorktrees()}>刷新</button>
+        </div>
+      </div>
+      {snapshot.worktrees.length ? snapshot.worktrees.map((worktree) => (
+        <div className="worktree-row" key={worktree.path}>
+          <div className="worktree-copy">
+            <strong>{worktree.name}{worktree.hasChanges ? <span className="worktree-dirty"> · 有未提交改动</span> : null}</strong>
+            <span title={worktree.path}>{worktree.path}</span>
+          </div>
+          <div className="pane-section-actions">
+            <button className="settings-action-btn" type="button" onClick={() => void controller.launchProject(worktree.path)}>打开</button>
+            <button
+              className="settings-action-btn danger"
+              type="button"
+              onClick={() => void confirmDialog({
+                title: `移除隔离副本 ${worktree.name}？`,
+                message: worktree.hasChanges
+                  ? '该副本仍有未提交改动，移除会一并丢弃。'
+                  : '副本目录会被删除，仓库主检出不受影响。',
+                detail: worktree.path,
+                confirmLabel: worktree.hasChanges ? '丢弃并移除' : '移除',
+              }).then((ok) => { if (ok) void controller.removeWorktree(worktree.path, worktree.hasChanges); })}
+            >
+              移除
+            </button>
+          </div>
+        </div>
+      )) : <div className="settings-help">还没有隔离副本。在会话栏「+」旁的菜单里选择「独立副本」即可创建。</div>}
+    </div>
+  );
+}
+
+/**
+ * Editor for the project's `AGENTS.md`.
+ *
+ * Prompt templates are a user-level convenience; `AGENTS.md` is a repository
+ * artifact every agent working in this project reads. Treating them as the
+ * same thing hid the project-level one entirely.
+ */
+function ProjectInstructionsSection({ snapshot }: { snapshot: AppSnapshot }) {
+  const [content, setContent] = useState('');
+  const [loaded, setLoaded] = useState('');
+  const [path, setPath] = useState('');
+  const [state, setState] = useState<'idle' | 'loading' | 'saving'>('idle');
+  const [error, setError] = useState('');
+  const projectPath = snapshot.workspace.noFolder ? '' : snapshot.workspace.path;
+
+  useEffect(() => {
+    if (!projectPath || !window.tauDesktop.isTauri) {
+      setContent('');
+      setLoaded('');
+      setPath('');
+      return;
+    }
+    let cancelled = false;
+    setState('loading');
+    void invoke<{ path: string; exists: boolean; content: string }>('read_project_instructions', { path: projectPath })
+      .then((result) => {
+        if (cancelled) return;
+        setContent(result.content);
+        setLoaded(result.content);
+        setPath(result.path);
+        setError('');
+      })
+      .catch((cause) => !cancelled && setError(String(cause)))
+      .finally(() => !cancelled && setState('idle'));
+    return () => { cancelled = true; };
+  }, [projectPath]);
+
+  const save = async () => {
+    if (!projectPath) return;
+    setState('saving');
+    try {
+      const result = await invoke<{ path: string; content: string }>('write_project_instructions', {
+        request: { path: projectPath, content },
+      });
+      setLoaded(result.content);
+      setPath(result.path);
+      setError('');
+      notify('已保存 AGENTS.md', result.path, 'success');
+    } catch (cause) {
+      setError(String(cause));
+      notify('保存失败', String(cause), 'error');
+    } finally {
+      setState('idle');
+    }
+  };
+
+  if (!projectPath) {
+    return (
+      <div className="pane-section">
+        <div className="pane-section-head"><div><div className="pane-section-title">项目指令</div>
+          <p className="pane-section-note">打开一个本地项目后，可以在这里维护随仓库走的 AGENTS.md。</p></div></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pane-section">
+      <div className="pane-section-head">
+        <div>
+          <div className="pane-section-title">项目指令 · AGENTS.md</div>
+          <p className="pane-section-note">写给在这个仓库工作的所有 Agent：约定、禁区、验证方式。保存后对新一轮任务生效。</p>
+        </div>
+        <div className="pane-section-actions">
+          <button className="settings-action-btn primary" type="button" disabled={state !== 'idle' || content === loaded} onClick={() => void save()}>
+            {state === 'saving' ? '保存中…' : content === loaded ? '已保存' : '保存'}
+          </button>
+        </div>
+      </div>
+      {path ? <div className="settings-meta-chip" title={path}><span className="settings-meta-chip-label">文件</span><span className="settings-meta-chip-value">{path}</span></div> : null}
+      {error ? <div className="settings-runtime-warning">{error}</div> : null}
+      <textarea
+        className="instructions-editor"
+        value={content}
+        spellCheck={false}
+        disabled={state === 'loading'}
+        placeholder={'# 项目约定\n\n- 运行测试：pnpm test\n- 不要修改 dist/\n'}
+        onChange={(event) => setContent(event.target.value)}
+      />
+    </div>
+  );
+}
 
 type SettingsSection = (typeof SETTINGS_SECTIONS)[number][0];
 
@@ -417,6 +822,9 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
             </div>
           ) : null}
 
+          {section === 'instructions' ? <ProjectInstructionsSection snapshot={snapshot} /> : null}
+          {section === 'instructions' ? <WorktreeSection snapshot={snapshot} /> : null}
+
           {section === 'permissions' ? (
             <div className="pane-section">
               <div className="pane-section-head">
@@ -465,13 +873,22 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                 })()}
               </div>
               {!snapshot.workspace.noFolder && snapshot.workspace.path ? <p className="settings-help">项目可信任变更会在下次启动该项目的 Pi 会话时生效。</p> : null}
+              <div className="trust-row">
+                <div className="trust-copy">
+                  <strong>操作审计日志</strong>
+                  <span>记录每一次工具授权、会话删除、Git 写入与运行时更新，便于事后核查。</span>
+                </div>
+                <button className="settings-action-btn" type="button" onClick={() => void controller.openAuditLog()}>打开日志</button>
+              </div>
             </div>
           ) : null}
 
+          {section === 'models' ? <ModelRoutingSection snapshot={snapshot} /> : null}
           {section === 'models' ? <ModelsProvidersSection snapshot={snapshot} /> : null}
 
           {section === 'runtime' ? (
             <>
+              <AppUpdateSection snapshot={snapshot} />
               <div className="pane-section">
                 <div className="pane-section-head">
                   <div>
@@ -705,6 +1122,7 @@ function ModelsProvidersSection({ snapshot }: { snapshot: AppSnapshot }) {
             {snapshot.modelsConfigLoading ? '刷新中…' : '刷新'}
           </button>
           <button className="settings-action-btn" type="button" onClick={() => void controller.openModelsConfig()}>打开文件</button>
+          <button className="settings-action-btn" type="button" title="恢复上次保存前的备份" onClick={() => void confirmDialog({ title: '恢复 models.json 备份？', message: '当前内容会被上次保存前的副本覆盖。', confirmLabel: '恢复' }).then((ok) => { if (ok) void controller.restoreModelsConfig(); })}>恢复备份</button>
           <button className="settings-action-btn primary" type="button" onClick={() => void save()} disabled={snapshot.modelsConfigSaving}>
             {snapshot.modelsConfigSaving ? '保存中…' : '保存'}
           </button>
@@ -1406,7 +1824,9 @@ function PromptRow({
             type="button"
             disabled={busy}
             onClick={() => {
-              if (window.confirm(`删除提示模板“/${template.name}”？\n${template.filePath}`)) onDelete();
+              void confirmDialog({ title: `删除提示模板 /${template.name}？`, detail: template.filePath }).then((ok) => {
+                if (ok) onDelete();
+              });
             }}
           >删除</button>
         ) : null}
@@ -1608,7 +2028,7 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
 }
 
 export function CustomizationView({ snapshot }: { snapshot: AppSnapshot }) {
-  const [tab, setTab] = useState<'extensions' | 'packages' | 'prompts'>('extensions');
+  const [tab, setTab] = useState<'extensions' | 'packages' | 'prompts' | 'automations'>('extensions');
   const extensionCount = snapshot.extensions?.extensions.length || 0;
   const packageCount = snapshot.packages?.packages.length || 0;
   const promptCount = snapshot.prompts?.templates.length || 0;
@@ -1616,6 +2036,7 @@ export function CustomizationView({ snapshot }: { snapshot: AppSnapshot }) {
     { id: 'extensions' as const, label: '扩展', count: extensionCount, subtitle: '为 Pi 添加独立扩展，安装后在下次会话生效。' },
     { id: 'packages' as const, label: '软件包', count: packageCount, subtitle: '安装包含扩展、技能、提示模板和主题的软件包。' },
     { id: 'prompts' as const, label: '提示模板', count: promptCount, subtitle: '把常用提示存成 Markdown 模板，在输入框里用 /名称 调用。' },
+    { id: 'automations' as const, label: '定时任务', count: snapshot.automations.length, subtitle: '让 Pi 按计划自己跑：每日简报、依赖检查、CI 失败分析。结果写进对应项目的会话。' },
   ];
   const current = tabs.find((item) => item.id === tab) || tabs[0];
   return (
@@ -1650,9 +2071,151 @@ export function CustomizationView({ snapshot }: { snapshot: AppSnapshot }) {
           {tab === 'extensions' ? <ExtensionsView snapshot={snapshot} /> : null}
           {tab === 'packages' ? <PackagesView snapshot={snapshot} /> : null}
           {tab === 'prompts' ? <PromptsView snapshot={snapshot} /> : null}
+          {tab === 'automations' ? <AutomationsView snapshot={snapshot} /> : null}
         </div>
       </div>
     </section>
+  );
+}
+
+function newAutomation(projectPath: string): Automation {
+  return {
+    id: `auto-${Date.now().toString(36)}`,
+    name: '每日代码简报',
+    prompt: '总结这个项目今天的改动，指出值得注意的风险。',
+    projectPath,
+    kind: 'daily',
+    minutes: 60,
+    time: '09:30',
+    enabled: true,
+    lastRunAt: 0,
+    lastStatus: '',
+  };
+}
+
+function automationStatus(item: Automation): string {
+  if (!item.lastRunAt) return '尚未运行';
+  const when = formatRelativeTime(item.lastRunAt);
+  return item.lastStatus.startsWith('error') ? `${when} · ${item.lastStatus}` : `${when} · 成功`;
+}
+
+/**
+ * Scheduled prompts.
+ *
+ * The app is already resident with a tray and notifications, so the marginal
+ * cost of running work on a schedule is small — and "the work was done before
+ * you sat down" is something a terminal session structurally cannot offer.
+ */
+function AutomationsView({ snapshot }: { snapshot: AppSnapshot }) {
+  const [draft, setDraft] = useState<Automation[]>(snapshot.automations);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (!dirty) setDraft(snapshot.automations);
+  }, [dirty, snapshot.automations]);
+
+  const update = (id: string, patch: Partial<Automation>) => {
+    setDraft((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    setDirty(true);
+  };
+
+  const save = async () => {
+    if (await controller.saveAutomations(draft)) setDirty(false);
+  };
+
+  return (
+    <div className="catalog">
+      <div className="catalog-toolbar">
+        <button
+          className="settings-action-btn"
+          type="button"
+          onClick={() => { setDraft((current) => [...current, newAutomation(snapshot.workspace.noFolder ? '' : snapshot.workspace.path)]); setDirty(true); }}
+        >
+          新建任务
+        </button>
+        <button className="settings-action-btn primary" type="button" disabled={!dirty} onClick={() => void save()}>
+          {dirty ? '保存' : '已保存'}
+        </button>
+      </div>
+
+      {draft.length ? draft.map((item) => (
+        <div className="automation-card" key={item.id}>
+          <div className="automation-head">
+            <input
+              className="settings-text-input"
+              value={item.name}
+              aria-label="任务名称"
+              onChange={(event) => update(item.id, { name: event.target.value })}
+            />
+            <label className="automation-toggle">
+              <input
+                type="checkbox"
+                checked={item.enabled}
+                onChange={(event) => update(item.id, { enabled: event.target.checked })}
+              />
+              启用
+            </label>
+            <button className="settings-action-btn" type="button" onClick={() => void controller.runAutomation(item.id)}>立即运行</button>
+            <button
+              className="settings-action-btn danger"
+              type="button"
+              onClick={() => { setDraft((current) => current.filter((entry) => entry.id !== item.id)); setDirty(true); }}
+            >
+              删除
+            </button>
+          </div>
+
+          <textarea
+            className="automation-prompt"
+            rows={3}
+            value={item.prompt}
+            aria-label="任务提示词"
+            placeholder="发给 Pi 的提示词"
+            onChange={(event) => update(item.id, { prompt: event.target.value })}
+          />
+
+          <div className="automation-schedule">
+            <select
+              className="review-base-select"
+              aria-label="调度方式"
+              value={item.kind}
+              onChange={(event) => update(item.id, { kind: event.target.value as Automation['kind'] })}
+            >
+              <option value="daily">每天</option>
+              <option value="interval">每隔</option>
+            </select>
+            {item.kind === 'daily' ? (
+              <input
+                className="settings-text-input automation-time"
+                value={item.time}
+                aria-label="运行时间"
+                placeholder="09:30"
+                onChange={(event) => update(item.id, { time: event.target.value })}
+              />
+            ) : (
+              <input
+                className="settings-text-input automation-time"
+                type="number"
+                min={1}
+                value={item.minutes}
+                aria-label="间隔分钟数"
+                onChange={(event) => update(item.id, { minutes: Number(event.target.value) || 1 })}
+              />
+            )}
+            {item.kind === 'interval' ? <span className="automation-unit">分钟</span> : null}
+            <input
+              className="settings-text-input automation-path"
+              value={item.projectPath}
+              aria-label="项目路径"
+              placeholder="项目路径（留空表示当前项目）"
+              onChange={(event) => update(item.id, { projectPath: event.target.value })}
+            />
+          </div>
+          <div className="automation-status">{automationStatus(item)}</div>
+        </div>
+      )) : <div className="settings-help">还没有定时任务。新建一个，让 Pi 每天早上先把简报准备好。</div>}
+      <p className="settings-help">任务会启动（或复用）对应项目的 Pi 进程并发送提示词；PiCode 关闭时不会执行。</p>
+    </div>
   );
 }
 
@@ -1695,7 +2258,9 @@ function PackageRow({
           type="button"
           disabled={removing}
           onClick={() => {
-            if (window.confirm(`移除 Pi 软件包“${item.source}”？`)) void controller.removePackage(item.source);
+            void confirmDialog({ title: `移除 Pi 软件包“${item.source}”？`, confirmLabel: '移除' }).then((ok) => {
+              if (ok) void controller.removePackage(item.source);
+            });
           }}
         >
           {removing ? '正在移除…' : '移除'}

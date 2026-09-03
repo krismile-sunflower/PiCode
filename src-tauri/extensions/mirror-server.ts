@@ -923,11 +923,28 @@ export default function (pi: ExtensionAPI) {
           try {
             const sessionFile = ctx.sessionManager.getSessionFile();
             if (!sessionFile) throw new Error("No session file to export");
-            const { execSync } = require("node:child_process");
-            const args = command.outputPath
-              ? `"${sessionFile}" "${command.outputPath}"`
-              : `"${sessionFile}"`;
-            const output = execSync(`pi --export ${args}`, { cwd: process.cwd(), timeout: 30000, encoding: "utf-8" });
+            // `outputPath` arrives from a WebSocket client, which on a mirror
+            // bound to 0.0.0.0 can be any machine on the network. It must never
+            // reach a shell: pass argv directly and refuse shell metacharacters
+            // outright so a quote cannot break out of the command line.
+            const requested = typeof command.outputPath === "string" ? command.outputPath.trim() : "";
+            if (requested && (/["'`$;&|<>\r\n]/.test(requested) || !requested.endsWith(".html"))) {
+              sendTo(ws, error("export_html", "Invalid output path"));
+              break;
+            }
+            const { execFileSync } = require("node:child_process");
+            const argv = requested ? ["--export", sessionFile, requested] : ["--export", sessionFile];
+            // Windows resolves `pi` through a .cmd shim, which execFile cannot
+            // launch without a shell — and with `shell: true` Node joins argv
+            // without quoting, so a path containing spaces would split. Quote
+            // here; the validation above is what keeps the quoting safe.
+            const useShell = process.platform === "win32";
+            const output = execFileSync("pi", useShell ? argv.map((value) => `"${value}"`) : argv, {
+              cwd: process.cwd(),
+              timeout: 30000,
+              encoding: "utf-8",
+              shell: useShell,
+            });
             // pi prints the output path
             const result = output.trim().split("\n").pop() || sessionFile.replace(".jsonl", ".html");
             sendTo(ws, success("export_html", { path: result }));
@@ -1173,6 +1190,14 @@ img{border-radius:12px}a{color:#b87a5c;font-size:18px;margin-top:16px}p{color:rg
             return;
           }
           const { execSync } = require("node:child_process");
+          // The path is nested inside an AppleScript double-quoted string
+          // inside a shell single-quoted string. Escaping single quotes alone
+          // is not enough — a double quote or backslash still breaks out.
+          if (/["\\`$;&|<>\r\n]/.test(resolved)) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Unsupported characters in path" }));
+            return;
+          }
           const escaped = resolved.replace(/'/g, "'\\''");
           execSync(`osascript -e 'tell app "iTerm2" to create window with default profile command "cd '"'"'${escaped}'"'"' && pi"'`);
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -1421,12 +1446,24 @@ img{border-radius:12px}a{color:#b87a5c;font-size:18px;margin-top:16px}p{color:rg
             res.end(JSON.stringify({ error: "filePath required" }));
             return;
           }
-          if (!fs.existsSync(filePath)) {
+          // This endpoint is reachable by anything that can talk to the local
+          // mirror port, so the path must be proven to be a Pi session file
+          // before it is unlinked — the same check the entry editor performs.
+          const resolved = path.resolve(filePath);
+          const root = path.resolve(SESSIONS_DIR);
+          const resolvedForCompare = process.platform === "win32" ? resolved.toLowerCase() : resolved;
+          const rootForCompare = process.platform === "win32" ? root.toLowerCase() : root;
+          if (!resolvedForCompare.startsWith(rootForCompare + path.sep) || !resolved.endsWith(".jsonl")) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Session file is outside the Pi sessions directory" }));
+            return;
+          }
+          if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
             res.writeHead(404, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Session not found" }));
             return;
           }
-          fs.unlinkSync(filePath);
+          fs.unlinkSync(resolved);
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: true }));
         } catch (err: any) {

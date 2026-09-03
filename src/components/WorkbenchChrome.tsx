@@ -35,7 +35,11 @@ import {
   matchSlashCommand,
 } from '../lib/slash-commands';
 import { controller } from '../app/controller';
-import { apiJson } from '../lib/desktop';
+import { invoke } from '@tauri-apps/api/core';
+import { apiJson, isDesktop } from '../lib/desktop';
+import { usageByModel, usageCsv } from '../lib/usage-report';
+import { applyMention, expandMentions, matchMention, relativeMention, type MentionMatch } from '../lib/mentions';
+import { pushInputHistory, readDraft, readInputHistory, writeDraft, writeInputHistory } from '../lib/composer-history';
 import { Icon, type IconName } from './Icon';
 
 const thinkingLabels: Record<string, string> = {
@@ -103,7 +107,7 @@ export function Header({ snapshot, onOpenSidebar, fileOpen, onToggleFiles }: Hea
       ? Math.round(snapshot.contextUsage.percent)
       : 0;
   const workspaceTitle = snapshot.workspace.noFolder
-    ? 'PiCode 专属目录'
+    ? '对话 · 不绑定仓库'
     : snapshot.workspace.path || '工作区';
   const connectionText = snapshot.isStreaming
     ? 'Pi 正在处理…'
@@ -129,6 +133,8 @@ export function Header({ snapshot, onOpenSidebar, fileOpen, onToggleFiles }: Hea
         { key: 'free', label: '可用', tokens: Math.max(0, total - used) },
       ]
     : [];
+
+  const usageRows = useMemo(() => usageByModel(snapshot.timeline), [snapshot.timeline]);
 
   const selectModel = async (model: ModelInfo) => {
     setModelsOpen(false);
@@ -205,6 +211,44 @@ export function Header({ snapshot, onOpenSidebar, fileOpen, onToggleFiles }: Hea
                   {percent >= 80 ? <button className="compact-btn" type="button" onClick={() => void controller.compact()}>压缩上下文</button> : null}
                 </>
               ) : <div className="context-viz-footer"><span>{hasReportedContext && reportedTokens == null ? '压缩后等待下一次回复确认' : '尚无用量数据'}</span></div>}
+              <div className="usage-breakdown">
+                <div className="context-viz-title">用量与成本</div>
+                {usageRows.length ? (
+                  <>
+                    <table className="usage-table">
+                      <thead>
+                        <tr><th>模型</th><th>回复</th><th>输入</th><th>输出</th><th>费用</th></tr>
+                      </thead>
+                      <tbody>
+                        {usageRows.map((row) => (
+                          <tr key={row.model}>
+                            <td title={row.model}>{shortModelName(row.model) || row.model}</td>
+                            <td>{row.messages}</td>
+                            <td>{formatTokens(row.input + row.cacheRead)}</td>
+                            <td>{formatTokens(row.output)}</td>
+                            <td>{row.cost ? `$${row.cost.toFixed(4)}` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="context-viz-footer">
+                      <span>会话累计 {snapshot.sessionTotalCost ? `$${snapshot.sessionTotalCost.toFixed(4)}` : '$0.0000'}</span>
+                      <button
+                        className="usage-export"
+                        type="button"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(usageCsv(usageRows));
+                          window.dispatchEvent(new CustomEvent('pi-studio:toast', {
+                            detail: { title: '用量已复制', message: 'CSV 已写入剪贴板', type: 'success' },
+                          }));
+                        }}
+                      >
+                        导出 CSV
+                      </button>
+                    </div>
+                  </>
+                ) : <div className="context-viz-footer"><span>本会话还没有产生用量记录</span></div>}
+              </div>
             </div>
           ) : null}
         </div>
@@ -300,13 +344,21 @@ interface ComposerProps {
 }
 
 export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile, onCancelEditing, onOpenCommands }: ComposerProps) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => readDraft(snapshot.selectedSessionFile));
+  const [history, setHistory] = useState<string[]>(() => readInputHistory());
+  // -1 means "editing a fresh draft"; 0+ walks back through sent messages.
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const draftBeforeHistory = useRef('');
+  const activeDraftSession = useRef(snapshot.selectedSessionFile);
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [attachingCount, setAttachingCount] = useState(0);
   const [zoomedImage, setZoomedImage] = useState<ImageAttachment | null>(null);
   const [recording, setRecording] = useState(false);
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [mention, setMention] = useState<MentionMatch | null>(null);
+  const [mentionFiles, setMentionFiles] = useState<Array<{ name: string; path: string }>>([]);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const slashListRef = useRef<HTMLDivElement>(null);
@@ -331,6 +383,34 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
     }
   }, [slashMatch, slashResults.length, slashMatch?.query]);
 
+  // `@` opens a workspace file picker. The lookup is debounced and scoped to
+  // the open project; without a project there is nothing to mention.
+  useEffect(() => {
+    if (!mention || !isDesktop || !snapshot.workspace.path || snapshot.workspace.noFolder) {
+      setMentionFiles([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void invoke<Array<{ name: string; path: string }>>('search_project_files', {
+        request: { path: snapshot.workspace.path, query: mention.query, limit: 12 },
+      })
+        .then((files) => {
+          if (!cancelled) {
+            setMentionFiles(files);
+            setMentionIndex(0);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setMentionFiles([]);
+        });
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [mention, snapshot.workspace.noFolder, snapshot.workspace.path]);
+
   useEffect(() => {
     if (!slashOpen) return;
     const list = slashListRef.current;
@@ -346,13 +426,33 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
     }
   }, [slashIndex, slashResults.length]);
 
+  // Persist the draft per session so switching conversations (or restarting the
+  // app) no longer throws away half-written instructions.
+  useEffect(() => {
+    if (editingMessage) return;
+    writeDraft(activeDraftSession.current, text);
+  }, [text, editingMessage]);
+
+  useEffect(() => {
+    const next = snapshot.selectedSessionFile;
+    if (next === activeDraftSession.current) return;
+    activeDraftSession.current = next;
+    setText(readDraft(next));
+    setHistoryIndex(-1);
+  }, [snapshot.selectedSessionFile]);
+
   useEffect(() => {
     const added = pendingFiles.filter((file) => !knownFiles.current.has(file.path));
     if (added.length) {
-      setText((value) => `${value}${value && !value.endsWith(' ') ? ' ' : ''}${added.map((file) => file.path).join(' ')} `);
+      // Insert a mention token, not a bare path: the path alone told the model
+      // a file exists, the mention makes its contents travel with the message.
+      const tokens = added
+        .map((file) => `@${relativeMention(file.path, snapshot.workspace.path || '')}`)
+        .join(' ');
+      setText((value) => `${value}${value && !value.endsWith(' ') ? ' ' : ''}${tokens} `);
     }
     knownFiles.current = new Set(pendingFiles.map((file) => file.path));
-  }, [pendingFiles]);
+  }, [pendingFiles, snapshot.workspace.path]);
 
   useEffect(() => {
     const ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -463,6 +563,21 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
     }
   };
 
+  const mentionOpen = Boolean(mention && mentionFiles.length);
+
+  const chooseMention = (relativePath: string) => {
+    if (!mention) return;
+    const next = applyMention(text, mention, relativePath);
+    setText(next.text);
+    setMention(null);
+    setMentionFiles([]);
+    window.requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      textarea?.focus();
+      textarea?.setSelectionRange(next.caret, next.caret);
+    });
+  };
+
   const applySlash = (command: SlashCommand) => {
     const cursor = textareaRef.current?.selectionStart ?? text.length;
     const next = applySlashCompletion(text, command.name, cursor);
@@ -483,7 +598,10 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
       return;
     }
     if (!text.trim() && images.length === 0) return;
-    const message = text;
+    // `@path` is a promise that the model will see the file, not its name.
+    const message = snapshot.workspace.path && !snapshot.workspace.noFolder
+      ? await expandMentions(text, snapshot.workspace.path)
+      : text;
     const attachments = images;
     if (editingMessage) {
       const sent = await controller.resendLastUserMessage(editingMessage.entryId, message, attachments);
@@ -492,7 +610,13 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
     } else {
       await controller.sendMessage(message, attachments);
     }
+    const nextHistory = pushInputHistory(history, text);
+    setHistory(nextHistory);
+    setHistoryIndex(-1);
+    writeInputHistory(nextHistory);
     setText('');
+    setMention(null);
+    writeDraft(activeDraftSession.current, '');
     setImages([]);
     setZoomedImage(null);
     setSlashOpen(false);
@@ -653,6 +777,29 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
               <div className="slash-menu-footer"><span>↑↓ 选择</span><span>Tab/Enter 补全</span><span>Esc 关闭</span></div>
             </div>
           ) : null}
+          {mentionOpen ? (
+            <div className="slash-menu mention-menu" role="listbox" aria-label="引用工作区文件">
+              <div className="slash-menu-header">引用文件 · 发送时会附上内容</div>
+              <div className="slash-menu-items">
+                {mentionFiles.map((file, index) => (
+                  <button
+                    key={file.path}
+                    className={`slash-menu-item${index === mentionIndex ? ' active' : ''}`}
+                    type="button"
+                    role="option"
+                    aria-selected={index === mentionIndex}
+                    onMouseEnter={() => setMentionIndex(index)}
+                    onClick={() => chooseMention(file.name)}
+                  >
+                    <span className="slash-menu-item-main">
+                      <span className="slash-menu-item-name">{file.name}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="slash-menu-footer"><span>↑↓ 选择</span><span>Tab/Enter 引用</span><span>Esc 关闭</span></div>
+            </div>
+          ) : null}
           <div className="input-bubble">
             <textarea
               id="message-input"
@@ -660,8 +807,37 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
               value={text}
               placeholder={snapshot.selectedSessionFile ? '在当前会话中向 Pi 发送消息… 输入 / 查看命令' : '向 Pi 发送消息… 输入 / 查看命令'}
               rows={2}
-              onChange={(event) => setText(event.target.value)}
+              onChange={(event) => {
+                setText(event.target.value);
+                setMention(matchMention(event.target.value, event.target.selectionStart ?? event.target.value.length));
+              }}
+              onClick={(event) => setMention(matchMention(text, event.currentTarget.selectionStart ?? text.length))}
               onKeyDown={(event) => {
+                if (mentionOpen) {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setMentionIndex((value) => Math.min(mentionFiles.length - 1, value + 1));
+                    return;
+                  }
+                  if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setMentionIndex((value) => Math.max(0, value - 1));
+                    return;
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setMention(null);
+                    return;
+                  }
+                  if ((event.key === 'Tab' || event.key === 'Enter') && !event.nativeEvent.isComposing) {
+                    const file = mentionFiles[mentionIndex];
+                    if (file) {
+                      event.preventDefault();
+                      chooseMention(file.name);
+                      return;
+                    }
+                  }
+                }
                 if (slashOpen && slashResults.length) {
                   if (event.key === 'ArrowDown') {
                     event.preventDefault();
@@ -694,7 +870,29 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
                 if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
                   void submit();
+                  return;
                 }
+                // ↑ from the first line walks back through what was sent, the
+                // way a shell does. Anywhere else it stays a cursor move.
+                if (event.key === 'ArrowUp' && !event.shiftKey && history.length) {
+                  const textarea = event.currentTarget;
+                  const atStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0;
+                  if (!atStart && historyIndex < 0) return;
+                  event.preventDefault();
+                  const nextIndex = Math.min(history.length - 1, historyIndex + 1);
+                  if (historyIndex < 0) draftBeforeHistory.current = text;
+                  setHistoryIndex(nextIndex);
+                  setText(history[nextIndex] || '');
+                  return;
+                }
+                if (event.key === 'ArrowDown' && !event.shiftKey && historyIndex >= 0) {
+                  event.preventDefault();
+                  const nextIndex = historyIndex - 1;
+                  setHistoryIndex(nextIndex);
+                  setText(nextIndex < 0 ? draftBeforeHistory.current : history[nextIndex] || '');
+                  return;
+                }
+                if (historyIndex >= 0 && event.key.length === 1) setHistoryIndex(-1);
               }}
               onDragOver={(event) => event.preventDefault()}
               onDrop={handleDrop}
@@ -747,6 +945,7 @@ interface CommandPaletteProps {
   onClose(): void;
   onToggleSidebar(): void;
   onToggleFiles(): void;
+  onShowShortcuts(): void;
 }
 
 interface CommandItem {
@@ -758,10 +957,12 @@ interface CommandItem {
   action(): void | Promise<void>;
 }
 
-export function CommandPalette({ open, onClose, onToggleSidebar, onToggleFiles }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, onToggleSidebar, onToggleFiles, onShowShortcuts }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const restoreFocus = useRef<HTMLElement | null>(null);
   const commands = useMemo<CommandItem[]>(() => [
     { icon: '+', label: '新建会话', description: '在当前工作区创建一个新会话', shortcut: '⌘N', keywords: 'new session', action: () => controller.newSession() },
     { icon: 'C', label: '压缩上下文', description: '压缩当前会话以节省上下文空间', keywords: 'compact context', action: () => controller.compact() },
@@ -772,15 +973,41 @@ export function CommandPalette({ open, onClose, onToggleSidebar, onToggleFiles }
     { icon: 'B', label: '切换会话栏', description: '显示或隐藏左侧会话栏', shortcut: '⌘B', keywords: 'sidebar', action: onToggleSidebar },
     { icon: 'F', label: '切换文件栏', description: '显示或隐藏当前工作区文件', shortcut: '⌘⇧F', keywords: 'files', action: onToggleFiles },
     { icon: 'P', label: '打开项目', description: '查看并切换工作区项目', keywords: 'projects workspace', action: () => controller.setView('projects') },
+    { icon: 'G', label: '打开变更', description: '在主区域查看 Git 变更与差异', keywords: 'git changes diff 变更', action: () => controller.setView('changes') },
     { icon: 'S', label: '打开设置', description: '管理外观、运行时和桌面行为', keywords: 'settings preferences', action: () => controller.setView('settings') },
-  ], [onToggleFiles, onToggleSidebar]);
+    { icon: 'K', label: '键盘快捷键', description: '查看全部快捷键与全局热键', shortcut: '⌘/', keywords: 'shortcuts hotkeys keyboard 快捷键', action: onShowShortcuts },
+  ], [onShowShortcuts, onToggleFiles, onToggleSidebar]);
   const visible = commands.filter((command) => !query.trim() || `${command.label} ${command.description} ${command.keywords}`.toLowerCase().includes(query.toLowerCase()));
 
   useEffect(() => {
     if (!open) return;
     setQuery('');
     setActiveIndex(0);
+    restoreFocus.current = document.activeElement as HTMLElement | null;
     window.requestAnimationFrame(() => inputRef.current?.focus());
+    // A dialog with `aria-modal` must actually hold focus: without this, Tab
+    // walked into the page behind the palette and Esc returned focus nowhere.
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input, [href], select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', trap);
+    return () => {
+      window.removeEventListener('keydown', trap);
+      restoreFocus.current?.focus?.();
+    };
   }, [open]);
 
   if (!open) return null;
@@ -793,7 +1020,7 @@ export function CommandPalette({ open, onClose, onToggleSidebar, onToggleFiles }
   return (
     <>
       <div className="command-palette-overlay" onClick={onClose} />
-      <div className="command-palette" role="dialog" aria-modal="true" aria-label="命令面板">
+      <div className="command-palette" role="dialog" aria-modal="true" aria-label="命令面板" ref={dialogRef}>
         <label className="command-palette-search"><Icon name="search" width={17} height={17} /><input ref={inputRef} type="search" placeholder="搜索命令…" value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={(event) => {
           if (event.key === 'ArrowDown') { event.preventDefault(); setActiveIndex((value) => Math.min(visible.length - 1, value + 1)); }
           if (event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex((value) => Math.max(0, value - 1)); }
@@ -804,7 +1031,7 @@ export function CommandPalette({ open, onClose, onToggleSidebar, onToggleFiles }
         <div className="command-list">
           {visible.length ? visible.map((command, index) => <button className={`command-item${index === activeIndex ? ' active' : ''}`} type="button" key={command.label} onMouseEnter={() => setActiveIndex(index)} onClick={() => run(index)}><span className="command-icon">{command.icon}</span><span><span className="command-label">{command.label}</span><span className="command-desc">{command.description}</span></span>{command.shortcut ? <kbd className="command-shortcut">{command.shortcut}</kbd> : <span />}</button>) : <div className="command-empty">没有匹配的命令</div>}
         </div>
-        <div className="command-palette-footer"><span>↑↓ 选择</span><span>Enter 执行</span></div>
+        <div className="command-palette-footer"><span>↑↓ 选择</span><span>Enter 执行</span><span>⌘/ 查看全部快捷键</span></div>
       </div>
     </>
   );
