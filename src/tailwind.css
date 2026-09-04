@@ -2,8 +2,23 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "katex/dist/katex.min.css" layer(base);
-@import "./style.css" layer(components);
-@import "./workbench.css" layer(components);
+/* Content renderer (Markdown / code / tool cards) — kept as one module. */
+@import "./styles/content.css" layer(components);
+/* Application shell modules. Import order mirrors the original cascade:
+   tokens first, signal.css (intentional overrides) LAST. */
+@import "./styles/tokens.css" layer(components);
+@import "./styles/base.css" layer(components);
+@import "./styles/shell.css" layer(components);
+@import "./styles/sidebar.css" layer(components);
+@import "./styles/header.css" layer(components);
+@import "./styles/panes.css" layer(components);
+@import "./styles/chat.css" layer(components);
+@import "./styles/file-panel.css" layer(components);
+@import "./styles/projects.css" layer(components);
+@import "./styles/overlays.css" layer(components);
+@import "./styles/plan.css" layer(components);
+@import "./styles/signal.css" layer(components);
+@import "./styles/diff-review.css" layer(components);
 
 /* Keep the existing semantic palette as Tailwind theme values. This lets
  * utility classes and the retained stateful component selectors share one
@@ -45,8 +60,8 @@
   --color-warning: var(--warning);
   --color-error: var(--error);
 
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", ui-sans-serif, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
 
   --radius-xs: var(--radius-xs);
   --radius-sm: var(--radius-sm);

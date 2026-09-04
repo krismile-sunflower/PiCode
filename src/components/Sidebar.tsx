@@ -352,7 +352,13 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
             </div>
           ) : null}
 
-          {!snapshot.sessionsLoading && filteredProjects.length === 0 && archivedSessions.length === 0 ? <div className="session-loading">没有找到会话</div> : null}
+          {!snapshot.sessionsLoading && filteredProjects.length === 0 && archivedSessions.length === 0 ? (
+            <div className="session-empty">
+              <span className="session-empty-icon"><Icon name="folder" width={18} height={18} /></span>
+              <strong>没有找到会话</strong>
+              <p>{query ? '换个关键词试试，或新建一个会话。' : '从「+」新建第一个会话开始。'}</p>
+            </div>
+          ) : null}
           {filteredProjects.map((project) => {
             const key = projectKey(project);
             const isCollapsed = collapsed.has(key);

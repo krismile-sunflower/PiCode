@@ -1,0 +1,68 @@
+/* Element defaults, focus rings, shared micro-classes, plus global polish:
+   thin scrollbars, tabular numerals, reduced-motion catch-all.
+   Source: workbench.css 143-163, 2800-2832, 2877-2887. */
+* { @apply m-0 box-border p-0; }
+:focus-visible { @apply outline-2 outline-offset-2 outline-accent; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { @apply outline-none; }
+html, body { @apply h-full w-full; }
+body {
+  @apply overflow-hidden bg-solid text-sm text-primary antialiased;
+  font-family: var(--app-font-sans);
+  line-height: 1.55;
+}
+h1, h2, h3, p, .hint, .message-content { @apply text-pretty; }
+button, input, textarea { font: inherit; }
+button { @apply cursor-pointer appearance-none; }
+button:disabled { @apply cursor-not-allowed; }
+kbd {
+  @apply inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border border-line bg-glass px-[5px] py-0 font-mono text-[10px] leading-none text-dim;
+  border-bottom-color: var(--border-bright);
+}
+.hidden { @apply hidden!; }
+.eyebrow {
+  @apply mb-[5px] block text-[10px] font-bold tracking-[.1em] text-dim uppercase;
+}
+/* ── Global polish ────────────────────────────────────────────────────────
+   z-index scale — keep every new floating layer inside this ladder:
+     1–40      in-flow content, sticky chrome, session-switch bar
+     120–200   sidebars, panel resizer, attachment overlays
+     300–310   file-sidebar drawer + mobile scrim
+     500–510   command palette
+     620       first-run onboarding
+     800       modal dialog
+     1000      toast region
+     1100      transient context menus (top-most)
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* One thin scrollbar everywhere; individual panes may still override size. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--border-hover); }
+*::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner { background: transparent; }
+
+/* Numeric readouts stay column-aligned instead of jittering per glyph. */
+.pill,
+.message-usage,
+.usage-table,
+.context-legend-value,
+.context-viz-footer,
+.project-count,
+.task-metrics strong {
+  font-variant-numeric: tabular-nums;
+}
+/* Respect the OS "reduce motion" setting as a final catch-all on top of the
+   per-component overrides above. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

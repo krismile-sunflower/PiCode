@@ -1645,7 +1645,12 @@ export function ExtensionsView({ snapshot }: { snapshot: AppSnapshot }) {
         <div className={`catalog-status${snapshot.extensionError ? ' error' : ''}`}>{status}</div>
         <div className="catalog-list">
           {filtered.map((item) => <ExtensionRow item={item} installing={snapshot.extensionInstallingId === item.id} key={item.id} />)}
-          {!snapshot.extensionsLoading && filtered.length === 0 ? <div className="catalog-empty">没有符合当前筛选条件的扩展。</div> : null}
+          {!snapshot.extensionsLoading && filtered.length === 0 ? (
+            <div className="catalog-empty">
+              <span className="catalog-empty-icon"><Icon name="grid" width={15} height={15} /></span>
+              <span>没有符合当前筛选条件的扩展。</span>
+            </div>
+          ) : null}
         </div>
       </div>
   );

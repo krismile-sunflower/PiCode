@@ -5,12 +5,14 @@ export const themes: Record<ThemeId, { name: string; dark: boolean; colors: stri
   dark: {
     name: '深色',
     dark: true,
-    colors: ['#0f1115', '#171a21', '#6d7cff', '#43d39e'],
+    // Swatches mirror the actual :root tokens in workbench.css so the
+    // settings preview matches what the theme really looks like.
+    colors: ['#0c0e12', '#161a22', '#8793f8', '#43d39e'],
   },
   light: {
     name: '浅色',
     dark: false,
-    colors: ['#f6f7f9', '#ffffff', '#5968e8', '#43b889'],
+    colors: ['#f4f4f1', '#ffffff', '#5968d7', '#43d39e'],
   },
 };
 
@@ -52,7 +54,7 @@ export function applyTheme(theme: ThemeId, persist = true): ThemeId {
   document.documentElement.style.colorScheme = theme;
   document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute(
     'content',
-    theme === 'light' ? '#f6f7f9' : '#0f1115',
+    theme === 'light' ? '#f4f4f1' : '#0c0e12',
   );
   if (persist) localStorage.setItem('tau-theme', theme);
   syncNativeTheme(theme);
