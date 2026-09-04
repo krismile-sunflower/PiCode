@@ -292,7 +292,7 @@ export function App() {
 
   return (
     <>
-      <div className="app-layout" data-view={snapshot.view}>
+      <div className="app-layout flex h-dvh w-full overflow-hidden bg-canvas" data-view={snapshot.view}>
         <Sidebar
           snapshot={snapshot}
           open={sidebarOpen}
@@ -306,7 +306,7 @@ export function App() {
           aria-orientation="vertical"
           aria-label="调整会话栏宽度"
         />
-        <main className="main">
+        <main className="main relative z-[1] flex h-full min-w-0 flex-[1_1_auto] flex-col overflow-hidden">
           <Header
             snapshot={snapshot}
             onOpenSidebar={() => setSidebarOpen(true)}

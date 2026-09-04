@@ -54,51 +54,51 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
   const mode = snapshot.settings?.permissionMode || 'ask';
 
   return (
-    <div className="onboarding-overlay" role="presentation">
-      <div className="onboarding-card" role="dialog" aria-modal="true" aria-label="PiCode 快速设置">
-        <div className="onboarding-head">
+    <div className="fixed inset-0 z-[620] flex items-center justify-center bg-[rgba(4,6,10,0.58)] p-6 backdrop-blur-[4px]" role="presentation">
+      <div className="max-h-[82vh] w-[min(600px,100%)] overflow-auto rounded-lg border border-line-hover bg-panel p-[22px] shadow-lg" role="dialog" aria-modal="true" aria-label="PiCode 快速设置">
+        <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <span className="eyebrow">开始使用 PiCode</span>
-            <strong>三个决定，之后随时可改</strong>
+            <strong className="block text-sm text-primary">三个决定，之后随时可改</strong>
           </div>
           <button className="icon-btn" type="button" aria-label="跳过引导" onClick={finish}>×</button>
         </div>
 
-        <ol className="onboarding-steps" aria-label="步骤">
+        <ol className="onboarding-steps mb-4 flex list-none gap-3 p-0" aria-label="步骤">
           {['选模型', '选权限', '选工作方式'].map((label, index) => (
-            <li className={index === step ? 'active' : index < step ? 'done' : ''} key={label}>
-              <span>{index + 1}</span>{label}
+            <li className={`${index === step ? 'active' : index < step ? 'done' : ''} flex items-center gap-1.5 text-[11px] text-dim`} key={label}>
+              <span className="flex h-4 w-4 items-center justify-center rounded-full border border-line-bright text-[9px]">{index + 1}</span>{label}
             </li>
           ))}
         </ol>
 
         {step === 0 ? (
-          <div className="onboarding-body">
+          <div className="mb-4 flex flex-col gap-3">
             <p className="hint">PiCode 不锁定供应商：任何 OpenAI 兼容、Anthropic、Google 接口都能用，还能按任务类型分别路由。</p>
             {models.length ? (
-              <div className="onboarding-models">
+              <div className="grid max-h-[210px] grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-1.5 overflow-auto">
                 {models.map((model) => (
                   <button
-                    className={`onboarding-model${model.id === snapshot.currentModelId ? ' active' : ''}`}
+                    className={`flex flex-col items-start rounded-lg border border-line bg-glass px-2.5 py-1.5 text-left text-[11px] text-primary${model.id === snapshot.currentModelId ? ' onboarding-model active' : ' onboarding-model'}`}
                     type="button"
                     key={`${model.provider || ''}:${model.id}`}
                     onClick={() => void controller.setModel(model)}
                   >
                     <span>{model.id}</span>
-                    {model.provider ? <small>{model.provider}</small> : null}
+                    {model.provider ? <small className="text-[9px] text-dim">{model.provider}</small> : null}
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="onboarding-empty">
-                还没有可用模型。<button type="button" onClick={() => { finish(); controller.setView('settings'); }}>去配置供应商</button>
+              <div className="text-xs text-secondary">
+                还没有可用模型。<button className="border-0 bg-transparent text-accent-text underline" type="button" onClick={() => { finish(); controller.setView('settings'); }}>去配置供应商</button>
               </div>
             )}
           </div>
         ) : null}
 
         {step === 1 ? (
-          <div className="onboarding-body">
+          <div className="mb-4 flex flex-col gap-3">
             <p className="hint">这决定 Pi 能替你做多少事。“本会话允许”只覆盖当前会话内的同一类操作，换会话即失效。</p>
             <div className="permission-mode-grid" role="radiogroup" aria-label="权限模式">
               {PERMISSION_CHOICES.map(([value, title, description]) => (
@@ -119,13 +119,13 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
         ) : null}
 
         {step === 2 ? (
-          <div className="onboarding-body">
+          <div className="mb-4 flex flex-col gap-3">
             <p className="hint">新建会话时（会话栏「+」旁的菜单）可以三选一：</p>
-            <div className="onboarding-modes">
+            <div className="flex flex-col gap-2">
               {MODE_NOTES.map(([title, description]) => (
-                <div className="onboarding-mode" key={title}>
+                <div className="flex items-start gap-2 text-[11px] text-secondary" key={title}>
                   <Icon name="check" width={13} height={13} />
-                  <div><strong>{title}</strong><span>{description}</span></div>
+                  <div><strong className="block text-xs text-primary">{title}</strong><span>{description}</span></div>
                 </div>
               ))}
             </div>
@@ -133,7 +133,7 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
           </div>
         ) : null}
 
-        <div className="onboarding-actions">
+        <div className="flex justify-end gap-2">
           <button className="settings-action-btn" type="button" onClick={finish}>跳过</button>
           {step > 0 ? <button className="settings-action-btn" type="button" onClick={() => setStep(step - 1)}>上一步</button> : null}
           {step < 2

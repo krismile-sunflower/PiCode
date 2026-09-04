@@ -2,12 +2,8 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "katex/dist/katex.min.css" layer(base);
-/* Content renderer (Markdown / code / tool cards) — kept as one module. */
 @import "./styles/content.css" layer(components);
-/* Application shell modules. Import order mirrors the original cascade:
-   tokens first, signal.css (intentional overrides) LAST. */
 @import "./styles/tokens.css" layer(components);
-@import "./styles/base.css" layer(components);
 @import "./styles/shell.css" layer(components);
 @import "./styles/sidebar.css" layer(components);
 @import "./styles/header.css" layer(components);
@@ -20,6 +16,57 @@
 @import "./styles/signal.css" layer(components);
 @import "./styles/diff-review.css" layer(components);
 
+@layer base {
+  * { @apply m-0 box-border p-0; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-accent; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible { @apply outline-none; }
+  html, body { @apply h-full w-full; }
+  body {
+    @apply overflow-hidden bg-solid text-sm text-primary antialiased;
+    font-family: var(--app-font-sans);
+    letter-spacing: -0.006em;
+    line-height: 1.55;
+  }
+  h1, h2, h3, p, .hint, .message-content { @apply text-pretty; }
+  button, input, textarea { font: inherit; }
+  button { @apply cursor-pointer appearance-none; }
+  button:disabled { @apply cursor-not-allowed; }
+  kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border border-line bg-glass px-[5px] py-0 font-mono text-[10px] leading-none text-dim;
+    border-bottom-color: var(--border-bright);
+  }
+  .hidden { @apply hidden!; }
+  .eyebrow {
+    @apply mb-[5px] block text-[10px] font-bold tracking-[.1em] text-dim uppercase;
+  }
+
+  /* Keep one scrollbar treatment and one reduced-motion fallback for every
+     utility-based component and every retained semantic module. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) transparent;
+  }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--border-hover); }
+  *::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner { background: transparent; }
+  .pill,
+  .message-usage,
+  .usage-table,
+  .context-legend-value,
+  .context-viz-footer,
+  .project-count,
+  .task-metrics strong { font-variant-numeric: tabular-nums; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+  }
+}
+/* Content renderer (Markdown / code / tool cards) — kept as one module. */
 /* Keep the existing semantic palette as Tailwind theme values. This lets
  * utility classes and the retained stateful component selectors share one
  * source of truth while preserving both light and dark themes. */

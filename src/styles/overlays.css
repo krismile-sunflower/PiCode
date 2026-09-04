@@ -178,50 +178,15 @@
   @apply text-[11px] text-dim;
 }
 .welcome-capabilities span { @apply inline-flex items-center gap-1.5; }
-/* First-run walkthrough (P2-09) */
-.onboarding-overlay {
-  @apply fixed inset-0 flex items-center justify-center;
-  z-index: 620;
-  padding: 24px;
-  background: rgba(4, 6, 10, 0.58);
-  backdrop-filter: blur(4px);
-}
-.onboarding-card {
-  width: min(600px, 100%);
-  max-height: 82vh;
-  @apply overflow-auto;
-  padding: 22px;
-  border: 1px solid var(--border-hover);
-  border-radius: var(--radius-lg);
-  background: var(--bg-panel);
-  box-shadow: var(--shadow-lg);
-}
-.onboarding-head { @apply mb-4 flex items-start justify-between gap-3; }
-.onboarding-head strong { @apply block text-sm text-primary; }
-.onboarding-steps { @apply mb-4 flex list-none gap-3 p-0; }
-.onboarding-steps li { @apply flex items-center gap-1.5 text-[11px] text-dim; }
+/* First-run walkthrough (P2-09). Static structure is expressed at the call
+   site; these selectors retain only state-specific visual treatments. */
 .onboarding-steps li span {
-  @apply flex h-4 w-4 items-center justify-center rounded-full text-[9px];
   border: 1px solid var(--border-bright);
 }
 .onboarding-steps li.active { @apply text-accent-text; }
 .onboarding-steps li.active span { background: var(--accent); color: white; border-color: transparent; }
 .onboarding-steps li.done span { background: var(--success); color: #06281c; /* stylelint-disable-line color-no-hex -- 深绿文字只此一处 */ border-color: transparent; }
-.onboarding-body { @apply mb-4 flex flex-col gap-3; }
-.onboarding-models { @apply grid gap-1.5; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); max-height: 210px; @apply overflow-auto; }
-.onboarding-model {
-  @apply flex flex-col items-start rounded-[8px] border border-line px-2.5 py-1.5 text-left;
-  background: var(--bg-glass);
-  @apply text-[11px] text-primary;
-}
-.onboarding-model small { @apply text-[9px] text-dim; }
 .onboarding-model.active { @apply border-accent; background: var(--accent-subtle); }
-.onboarding-empty { @apply text-xs text-secondary; }
-.onboarding-empty button { @apply border-0 bg-transparent underline; color: var(--accent-text); font: inherit; }
-.onboarding-modes { @apply flex flex-col gap-2; }
-.onboarding-mode { @apply flex items-start gap-2 text-[11px]; color: var(--text-secondary); }
-.onboarding-mode strong { @apply block text-xs text-primary; }
-.onboarding-actions { @apply flex justify-end gap-2; }
 
 /* Scheduled prompts (P2-10) */
 .catalog-toolbar { @apply mb-3 flex justify-end gap-2; }

@@ -1,11 +1,7 @@
 /* App shell: layout grid, main canvas, panel resizers.
    Source: workbench.css 165-191. */
-/* Workspace shell */
-.app-layout {
-  @apply flex h-dvh w-full overflow-hidden bg-canvas;
-}
+/* Workspace shell. Layout utilities live at the call site in App.tsx. */
 .main {
-  @apply relative z-[1] flex h-full min-w-0 flex-[1_1_auto] flex-col overflow-hidden;
   /* Faint engineering-grid texture; merged from the former signal.css
      override. The old radial accent glow that lived here was dead code —
      it was always overridden by this background-image — so it is gone. */

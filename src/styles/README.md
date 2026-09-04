@@ -8,7 +8,7 @@
 | 文件 | 职责 | 对应组件域 |
 |------|------|-----------|
 | `tokens.css` | 深浅主题设计 token、代码配色 | 全局变量，只能在这里定义 |
-| `base.css` | 元素默认、focus、kbd、滚动条、tabular-nums、reduced-motion 兜底 | 全局元素 |
+| `tailwind.css @layer base` | 元素默认、focus、kbd、滚动条、tabular-nums、reduced-motion 兜底 | 全局元素 |
 | `shell.css` | `.app-layout` / `.main` / panel resizer | App 布局骨架 |
 | `sidebar.css` | 会话侧栏全部 + 底部导航 + 新会话菜单 + 空状态 | `Sidebar.tsx` |
 | `header.css` | 顶栏、模型下拉、上下文用量浮层 | `WorkbenchChrome.tsx` Header |
@@ -33,14 +33,14 @@
 2. **token 纪律**：禁止在规则里写裸 hex/rgba 颜色（`tokens.css` 定义处和
    遮罩层 `rgba(4,6,10,…)` 除外）；一律用 `var(--…)` 或
    `color-mix(in srgb, var(--…))`。
-3. **z-index 刻度**（base.css 头部有注释）：1–40 内容/吸顶 → 120–200 侧栏 →
+3. **z-index 刻度**（`tailwind.css` 的基础层注释）：1–40 内容/吸顶 → 120–200 侧栏 →
    300–310 抽屉 → 500–510 命令面板 → 620 Onboarding → 800 对话框 →
    1000 toast → 1100 临时右键菜单。新浮层必须落在这个梯子上。
 4. **工具类 vs 语义类分工**：
    - 一次性布局、简单间距 → TSX 里直接写 Tailwind 工具类
    - 复用 ≥2 处的复合组件、状态样式、主题相关样式 → CSS 语义类
    - 出现复制粘贴第三遍的工具类组合 → 沉淀为语义类
-5. **动画**：新动画必须同时登记进 base.css 的 `prefers-reduced-motion`
+5. **动画**：新动画必须同时登记进 `tailwind.css` 的 `prefers-reduced-motion`
    兜底块覆盖范围（兜底是全局的，一般无需额外处理，但不要用
    `animation-duration` 以外的手段绕过它）。
 
