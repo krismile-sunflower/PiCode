@@ -71,18 +71,22 @@ export function ConfirmHost() {
   };
 
   return (
-    <div className="confirm-overlay" role="presentation" onClick={() => settle(false)}>
+    <div
+      className="fixed inset-0 z-[700] flex items-center justify-center bg-[rgba(4,6,10,0.52)] p-6 backdrop-blur-[3px]"
+      role="presentation"
+      onClick={() => settle(false)}
+    >
       <div
-        className="confirm-dialog"
+        className="w-[min(420px,100%)] rounded-lg border border-line-hover bg-panel p-5 shadow-lg"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={`confirm-title-${pending.id}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="confirm-title" id={`confirm-title-${pending.id}`}>{pending.title}</div>
-        {pending.message ? <p className="confirm-message">{pending.message}</p> : null}
-        {pending.detail ? <p className="confirm-detail" title={pending.detail}>{pending.detail}</p> : null}
-        <div className="confirm-actions">
+        <div className="mb-1.5 text-sm font-semibold text-primary" id={`confirm-title-${pending.id}`}>{pending.title}</div>
+        {pending.message ? <p className="mb-1.5 text-xs text-secondary">{pending.message}</p> : null}
+        {pending.detail ? <p className="mb-1 truncate font-mono text-[11px] leading-[1.5] text-dim" title={pending.detail}>{pending.detail}</p> : null}
+        <div className="mt-4 flex justify-end gap-2">
           <button className="settings-action-btn" type="button" onClick={() => settle(false)}>
             {pending.cancelLabel || '取消'}
           </button>

@@ -50,7 +50,7 @@
 .diff-comment-btn {
   @apply absolute left-[76px] hidden h-[15px] w-[15px] items-center justify-center rounded-[4px] border-0 p-0 text-[11px] leading-none;
   background: var(--accent);
-  color: #fff;
+  color: white;
 }
 .diff-line:hover .diff-comment-btn { @apply flex; }
 .diff-hunk-actions { @apply ml-auto inline-flex gap-1 pr-2; }

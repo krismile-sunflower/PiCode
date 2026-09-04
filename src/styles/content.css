@@ -234,34 +234,6 @@
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 600; }
 
-/* Crash screen (ErrorBoundary fallback) */
-.crash-screen {
-  @apply flex h-full w-full items-center justify-center;
-  padding: 32px;
-  background: var(--bg-solid);
-}
-.crash-card {
-  width: min(560px, 100%);
-  padding: 24px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg-panel);
-  box-shadow: var(--shadow-md);
-}
-.crash-title { @apply text-base font-semibold text-primary; margin-bottom: 6px; }
-.crash-summary { @apply text-sm text-secondary; margin-bottom: 14px; }
-.crash-detail {
-  @apply overflow-auto whitespace-pre-wrap;
-  max-height: 180px;
-  margin-bottom: 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--code-bg);
-  color: var(--code-fg);
-  font: 11px/1.6 var(--app-font-mono);
-}
-.crash-actions { @apply flex flex-wrap gap-2; }
 .message-content :not(pre) > code {
   padding: 2px 5px;
   border: 1px solid var(--border);

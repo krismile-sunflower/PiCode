@@ -38,14 +38,14 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children;
 
     return (
-      <div className="crash-screen" role="alert">
-        <div className="crash-card">
-          <div className="crash-title">界面出错了</div>
-          <p className="crash-summary">
+      <div className="flex h-full w-full items-center justify-center bg-solid p-8" role="alert">
+        <div className="w-[min(560px,100%)] rounded-lg border border-line bg-panel p-6 shadow-md">
+          <div className="mb-1.5 text-base font-semibold text-primary">界面出错了</div>
+          <p className="mb-3.5 text-sm text-secondary">
             PiCode 的某个界面组件渲染失败，会话数据没有受影响——重新加载即可继续。
           </p>
-          <pre className="crash-detail">{error.message || String(error)}</pre>
-          <div className="crash-actions">
+          <pre className="mb-4 max-h-[180px] overflow-auto whitespace-pre-wrap rounded-sm border border-line bg-[var(--code-bg)] px-3 py-2.5 font-mono text-[11px] leading-[1.6] text-[var(--code-fg)]">{error.message || String(error)}</pre>
+          <div className="flex flex-wrap gap-2">
             <button className="settings-action-btn primary" type="button" onClick={() => window.location.reload()}>
               重新加载
             </button>

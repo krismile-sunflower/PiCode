@@ -156,7 +156,7 @@
 .settings-toggle { @apply relative; width: 38px; height: 22px; @apply flex-none; @apply p-0; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-muted); @apply cursor-pointer; transition: background var(--duration-fast), border-color var(--duration-fast); }
 .settings-toggle::after { content: ""; @apply absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-dim); transition: transform var(--duration) var(--ease), background var(--duration-fast); }
 .settings-toggle.on { @apply border-accent; background: var(--accent); }
-.settings-toggle.on::after { background: #fff; transform: translateX(16px); }
+.settings-toggle.on::after { background: white; transform: translateX(16px); }
 .settings-value-btn { min-height: 30px; padding: 0 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-muted); @apply text-primary; font: 10px/1 var(--app-font-mono); @apply cursor-pointer; }
 .settings-value-btn:hover:not(:disabled) { @apply border-line-hover; background: var(--bg-elevated); }
 .settings-value-btn:disabled { @apply text-dim; @apply cursor-not-allowed; opacity: .62; }

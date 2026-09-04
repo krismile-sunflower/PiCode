@@ -1,0 +1,44 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "ignoreFiles": ["dist/**"],
+  "rules": {
+    "at-rule-no-unknown": [true, { "ignoreAtRules": ["apply", "theme", "custom-variant", "variant", "utility", "source", "plugin", "config", "reference", "layer", "import"] }],
+    "color-no-hex": true,
+    "at-rule-empty-line-before": null,
+    "at-rule-no-deprecated": null,
+    "declaration-block-single-line-max-declarations": null,
+    "color-function-alias-notation": null,
+    "color-hex-length": null,
+    "media-feature-range-notation": null,
+    "keyframes-name-pattern": null,
+    "declaration-property-value-keyword-no-deprecated": null,
+    "declaration-property-value-no-unknown": null,
+    "value-keyword-case": null,
+    "no-duplicate-selectors": null,
+    "selector-not-notation": null,
+    "import-notation": null,
+    "custom-property-empty-line-before": null,
+    "declaration-block-no-redundant-longhand-properties": null,
+    "no-descending-specificity": null,
+    "selector-class-pattern": null,
+    "comment-empty-line-before": null,
+    "shorthand-property-no-redundant-values": null,
+    "alpha-value-notation": null,
+    "hue-degree-notation": null,
+    "color-function-notation": null,
+    "value-no-vendor-prefix": null,
+    "property-no-vendor-prefix": null,
+    "media-feature-name-value-no-unknown": null,
+    "rule-empty-line-before": null,
+    "declaration-empty-line-before": null,
+    "custom-property-pattern": null,
+    "font-family-no-missing-generic-family-keyword": [true, { "ignoreFontFamilies": ["var(--app-font-sans)", "var(--app-font-mono)"] }]
+  },
+  "overrides": [
+    {
+      "files": ["src/styles/tokens.css"],
+      "rules": { "color-no-hex": null }
+    }
+  ]
+}
+

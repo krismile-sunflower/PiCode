@@ -76,24 +76,31 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose(): voi
   if (!open) return null;
 
   return (
-    <div className="shortcuts-overlay" role="presentation" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[640] flex items-center justify-center bg-[rgba(4,6,10,0.5)] p-6 backdrop-blur-[3px]"
+      role="presentation"
+      onClick={onClose}
+    >
       <div
-        className="shortcuts-panel"
+        className="max-h-[78vh] w-[min(720px,100%)] overflow-auto rounded-lg border border-line-hover bg-panel px-[22px] pb-[22px] pt-5 shadow-lg"
         role="dialog"
         aria-modal="true"
         aria-label="键盘快捷键"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="shortcuts-head">
+        <div className="mb-3.5 flex items-center justify-between text-sm text-primary">
           <strong>键盘快捷键</strong>
           <button className="icon-btn" type="button" ref={closeRef} aria-label="关闭" onClick={onClose}>×</button>
         </div>
-        <div className="shortcuts-grid">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-x-7 gap-y-4">
           {SHORTCUT_GROUPS.map((group) => (
-            <section className="shortcuts-group" key={group.title}>
-              <div className="eyebrow">{group.title}</div>
+            <section key={group.title}>
+              <div className="eyebrow mb-2">{group.title}</div>
               {group.items.map((item) => (
-                <div className="shortcuts-row" key={`${group.title}-${item.keys}`}>
+                <div
+                  className="flex items-center justify-between gap-3 border-b border-line py-[5px] text-xs text-secondary last:border-b-0"
+                  key={`${group.title}-${item.keys}`}
+                >
                   <span>{item.label}</span>
                   <kbd>{item.keys}</kbd>
                 </div>

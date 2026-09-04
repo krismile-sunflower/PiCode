@@ -158,7 +158,7 @@
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--border) 40%, transparent) 1px, transparent 1px) 50% 0 / 72px 72px,
     linear-gradient(color-mix(in srgb, var(--border) 32%, transparent) 1px, transparent 1px) 50% 0 / 72px 72px;
-  mask-image: radial-gradient(ellipse 64% 54% at 50% 45%, #000 0%, transparent 78%);
+  mask-image: radial-gradient(ellipse 64% 54% at 50% 45%, black 0%, transparent 78%);
   opacity: .28;
   @apply pointer-events-none;
 }
