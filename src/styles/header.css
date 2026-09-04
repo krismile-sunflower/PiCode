@@ -72,7 +72,6 @@
 .model-dropdown-item { @apply grid; @apply w-full; min-height: 44px; grid-template-columns: minmax(0, 1fr) auto; @apply items-center; gap: 12px; padding: 7px 9px; border: 1px solid transparent; border-radius: 8px; background: transparent; @apply text-secondary; @apply text-left; @apply cursor-pointer; @apply appearance-none; }
 .model-dropdown-item:hover { @apply border-line; background: var(--bg-glass-hover); @apply text-primary; }
 .model-dropdown-item.active { border-color: color-mix(in srgb, var(--accent) 24%, var(--border)); background: var(--accent-subtle); @apply text-accent-text; }
-.model-dropdown-item.keyboard-active { @apply border-accent; background: var(--accent-subtle); @apply text-primary; }
 .model-dropdown-item.empty { @apply block; @apply min-h-0; padding: 22px 10px; @apply text-dim; font-size: 11px; @apply text-center; @apply cursor-default; }
 .model-dropdown-item-main { @apply flex; @apply min-w-0; @apply flex-col; gap: 2px; }
 .model-dropdown-item-name { @apply min-w-0; @apply overflow-hidden; @apply text-inherit; font: 11px/1.3 var(--app-font-mono); @apply text-ellipsis; @apply whitespace-nowrap; }

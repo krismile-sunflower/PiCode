@@ -6,9 +6,19 @@
 }
 .main {
   @apply relative z-[1] flex h-full min-w-0 flex-[1_1_auto] flex-col overflow-hidden;
-  background:
-    radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 35%),
-    var(--bg-canvas);
+  /* Faint engineering-grid texture; merged from the former signal.css
+     override. The old radial accent glow that lived here was dead code —
+     it was always overridden by this background-image — so it is gone. */
+  background-color: var(--bg-canvas);
+  background-image:
+    linear-gradient(rgba(226, 232, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 232, 255, 0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+:root[data-theme="light"] .main {
+  background-image:
+    linear-gradient(rgba(29, 36, 53, 0.032) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 36, 53, 0.032) 1px, transparent 1px);
 }
 .panel-resizer {
   @apply relative z-[130] w-[5px] flex-[0_0_5px] cursor-col-resize bg-transparent;

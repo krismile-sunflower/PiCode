@@ -1,9 +1,4 @@
 /* Signal workspace polish — intentional OVERRIDES of earlier modules. MUST stay last in the import order. Source: workbench.css 2308-2445. */
-/* Signal workspace: quiet surfaces, intentional hierarchy, and a useful command deck. */
-body {
-  font-family: var(--app-font-sans);
-  letter-spacing: -0.006em;
-}
 
 kbd,
 .message-usage,
@@ -21,20 +16,6 @@ kbd,
   font-family: var(--app-font-mono);
 }
 
-.main {
-  background-color: var(--bg-canvas);
-  background-image:
-    linear-gradient(rgba(226, 232, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 232, 255, 0.025) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
-:root[data-theme="light"] .main {
-  background-image:
-    linear-gradient(rgba(29, 36, 53, 0.032) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(29, 36, 53, 0.032) 1px, transparent 1px);
-}
-
 .sidebar,
 .file-sidebar {
   background: color-mix(in srgb, var(--bg-sidebar) 94%, transparent);
@@ -45,7 +26,7 @@ kbd,
 .panel-resizer { width: 4px; flex-basis: 4px; }
 .panel-resizer::after { left: 1px; }
 
-.icon-btn, .sidebar-toggle, .settings-btn { border-radius: 7px; }
+.icon-btn, .sidebar-toggle { border-radius: 7px; }
 
 .header {
   min-height: var(--header-height);

@@ -64,8 +64,7 @@
 .workspace-chip-chevron { @apply flex-none; @apply text-ghost; transform: rotate(90deg); }
 .workspace-chip:hover .workspace-chip-chevron { @apply text-secondary; }
 .icon-btn,
-.sidebar-toggle,
-.settings-btn {
+.sidebar-toggle {
   @apply inline-flex;
   width: 32px;
   height: 32px;
@@ -82,8 +81,7 @@
   -webkit-app-region: no-drag;
 }
 .icon-btn:hover,
-.sidebar-toggle:hover,
-.settings-btn:hover { @apply border-line; background: var(--bg-glass-hover); @apply text-primary; }
+.sidebar-toggle:hover { @apply border-line; background: var(--bg-glass-hover); @apply text-primary; }
 .icon-btn:active,
 .sidebar-toggle:active { transform: scale(.94); }
 /* Search + new session share one 36px strip. */
@@ -155,7 +153,6 @@
   background: var(--border-hover);
 }
 .session-list::-webkit-scrollbar-track { background: transparent; }
-.session-loading { padding: 28px 10px; @apply text-secondary; font-size: 12px; @apply text-center; }
 /* Mirrors the single-line .session-item so the list doesn't jump on load. */
 .session-skeleton { @apply flex; min-height: 33px; @apply items-center; gap: 8px; margin: 1px 0; padding: 6px 9px 6px 11px; }
 .session-skeleton-title, .session-skeleton-meta {
@@ -304,17 +301,6 @@ div.project-header:hover { background: transparent; @apply text-secondary; }
 .archived-header .archive-icon { @apply text-dim; font-size: 13px; }
 .session-item.archived { opacity: .76; }
 .session-item.archived:hover { opacity: 1; }
-.search-snippet {
-  display: -webkit-box;
-  margin-top: 3px;
-  @apply overflow-hidden;
-  @apply text-secondary;
-  font-size: 11px;
-  line-height: 1.4;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-.search-snippet mark { padding: 0 2px; border-radius: 3px; background: var(--accent-subtle); @apply text-accent-text; }
 .session-rename-input {
   @apply w-full;
   @apply min-w-0;
@@ -352,7 +338,6 @@ div.project-header:hover { background: transparent; @apply text-secondary; }
 }
 .context-menu-item:hover { background: var(--bg-glass-hover) !important; @apply text-primary; }
 .context-menu-icon { width: 16px; @apply flex-none; @apply text-secondary; @apply text-center; }
-.icon-btn.spinning { animation: workbenchSpin .5s ease; }
 .sidebar-footer {
   @apply grid;
   /* Four destinations — 项目 / 变更 / 定制 / 设置 — must fit one row. */

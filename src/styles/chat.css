@@ -235,8 +235,7 @@
   backdrop-filter: none;
   @apply overflow-visible;
 }
-.input-area.mirror-readonly { opacity: .72; }
-.mobile-context-toggle, .mobile-model-bar { @apply hidden; }
+.mobile-model-bar { @apply hidden; }
 .composer-shell {
   @apply overflow-hidden;
   border: 1px solid var(--border-hover);
@@ -361,14 +360,12 @@
 .input-mic-btn { @apply static; inset: auto; transform: none; }
 .input-mic-btn.recording { @apply text-error; animation: workbenchPulse 1.4s ease-in-out infinite; }
 .composer-context { @apply hidden; }
-.workspace-strip { @apply flex; @apply min-w-0; @apply max-w-none; @apply items-center; @apply justify-center; gap: 5px; @apply m-0; @apply p-0; font-size: 10px; }
-.workspace-chip, .workspace-link { @apply inline-flex; height: 28px; @apply min-w-0; @apply items-center; gap: 5px; padding: 0 8px; border: 1px solid transparent; border-radius: 7px; background: transparent; @apply text-dim; @apply cursor-pointer; }
-.workspace-chip:hover, .workspace-link:hover { @apply border-line; background: var(--bg-glass-hover); @apply text-secondary; }
+.workspace-chip { @apply inline-flex; height: 28px; @apply min-w-0; @apply items-center; gap: 5px; padding: 0 8px; border: 1px solid transparent; border-radius: 7px; background: transparent; @apply text-dim; @apply cursor-pointer; }
+.workspace-chip:hover { @apply border-line; background: var(--bg-glass-hover); @apply text-secondary; }
 .workspace-chip-icon { @apply flex-none; opacity: .72; }
 .workspace-name { @apply overflow-hidden; max-width: 180px; @apply text-secondary; @apply text-ellipsis; @apply whitespace-nowrap; }
 .workspace-path { @apply hidden; }
-.workspace-link { @apply hidden; @apply flex-none; }
-.workspace-link.active, .workspace-link:disabled, .workspace-chip.no-folder .workspace-name { @apply text-warning; }
+.workspace-chip.no-folder .workspace-name { @apply text-warning; }
 .input-actions { @apply flex; align-self: auto; @apply items-center; gap: 4px; }
 #send-btn, #abort-btn { @apply inline-flex; width: 32px; height: 32px; @apply items-center; @apply justify-center; border: 0; border-radius: 9px; background: var(--accent); @apply text-white; box-shadow: 0 4px 12px var(--accent-glow); @apply cursor-pointer; }
 #send-btn:hover, #abort-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }

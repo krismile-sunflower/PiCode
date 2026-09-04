@@ -8,6 +8,7 @@ html, body { @apply h-full w-full; }
 body {
   @apply overflow-hidden bg-solid text-sm text-primary antialiased;
   font-family: var(--app-font-sans);
+  letter-spacing: -0.006em;
   line-height: 1.55;
 }
 h1, h2, h3, p, .hint, .message-content { @apply text-pretty; }

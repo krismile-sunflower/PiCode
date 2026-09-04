@@ -40,7 +40,6 @@
 #dialog-container.hidden { @apply hidden; }
 .dialog { width: min(480px, 100%); max-height: min(680px, 86vh); @apply overflow-auto; padding: 20px; border: 1px solid var(--border-hover); border-radius: 15px; background: var(--bg-elevated); box-shadow: var(--shadow-lg); animation: paletteEnter var(--duration) var(--ease); }
 .dialog-title { @apply text-primary; font-size: 16px; font-weight: 680; @apply whitespace-pre-wrap; }
-.dialog-security-note { margin-top: 8px; @apply text-dim; font-size: 11px; line-height: 1.5; }
 .dialog-message { margin-top: 8px; @apply text-secondary; }
 .dialog-options { @apply grid; gap: 6px; margin-top: 14px; }
 .dialog-option { @apply w-full; padding: 10px 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-panel); @apply text-secondary; @apply text-left; @apply cursor-pointer; }
@@ -137,7 +136,7 @@
   .input-icon-btn span { @apply hidden; }
   .input-icon-btn { width: 30px; @apply justify-center; @apply p-0; }
   .composer-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
-  .workspace-path, .workspace-link { @apply hidden; }
+  .workspace-path { @apply hidden; }
   .workspace-name { max-width: 26vw; }
   .composer-hint { @apply hidden; }
   .settings-panel, .extensions-panel, .changes-panel, .launcher { padding: 30px 14px 50px; }
