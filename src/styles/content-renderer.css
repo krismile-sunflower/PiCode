@@ -1,0 +1,172 @@
+/* Conversation content renderer — retained as CSS because these selectors
+   target react-markdown / highlight.js / KaTeX output that carries no class
+   names we control. All component chrome lives as Tailwind utilities in
+   markup; `data-role` on the message root marks assistant vs user context. */
+
+/* Markdown typography inside assistant messages. */
+.message[data-role="assistant"] .message-content p { margin: 0 0 8px; }
+.message[data-role="assistant"] .message-content p:last-child { margin-bottom: 0; }
+.message[data-role="assistant"] .message-content strong { font-weight: 650; }
+.message[data-role="assistant"] .message-content em { @apply text-secondary italic; }
+.message[data-role="assistant"] .message-content a {
+  @apply text-accent-text no-underline;
+  border-bottom: 1px solid var(--accent-subtle);
+}
+.message[data-role="assistant"] .message-content a:hover { border-color: var(--accent-text); }
+.message[data-role="assistant"] .message-content ul,
+.message[data-role="assistant"] .message-content ol { margin: 6px 0 10px; padding-left: 22px; }
+.message[data-role="assistant"] .message-content li { margin: 3px 0; }
+.message[data-role="assistant"] .message-content li + li { margin-top: 4px; }
+.message[data-role="assistant"] .message-content h1,
+.message[data-role="assistant"] .message-content h2,
+.message[data-role="assistant"] .message-content h3 {
+  margin: 14px 0 6px;
+  @apply text-primary;
+  letter-spacing: -.02em;
+}
+.message[data-role="assistant"] .message-content h1 { font-size: 18px; font-weight: 720; }
+.message[data-role="assistant"] .message-content h2 { font-size: 16px; font-weight: 680; }
+.message[data-role="assistant"] .message-content h3 { font-size: 14px; font-weight: 650; }
+.message[data-role="assistant"] .message-content hr { margin: 14px 0; border: 0; border-top: 1px solid var(--border); }
+.message[data-role="assistant"] .message-content blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--accent);
+  @apply text-secondary;
+}
+.message[data-role="user"] .message-content blockquote {
+  margin: 4px 0;
+  padding-left: 9px;
+  border-left: 2px solid currentColor;
+  opacity: .78;
+}
+
+/* Tables (rendered through react-markdown; the wrapper gets utilities). */
+.message-content table {
+  @apply w-full;
+  min-width: 320px;
+  @apply border-separate;
+  @apply border-spacing-0;
+  font-size: 13px;
+  @apply text-primary;
+  background: var(--bg-elevated);
+}
+.message-content th {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-hover);
+  background: var(--bg-muted);
+  @apply text-primary;
+  font-size: 12px;
+  font-weight: 680;
+  @apply text-left;
+  @apply whitespace-nowrap;
+}
+.message-content td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  @apply text-primary;
+  @apply align-top;
+  line-height: 1.55;
+}
+.message-content tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--bg-muted) 55%, var(--bg-elevated));
+}
+.message-content tr:last-child td { border-bottom: 0; }
+.message-content tbody tr:hover td {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
+}
+.message-content td:first-child,
+.message-content th:first-child { padding-left: 16px; }
+.message-content td:last-child,
+.message-content th:last-child { padding-right: 16px; }
+.message-content th:first-child { border-top-left-radius: 11px; }
+.message-content th:last-child { border-top-right-radius: 11px; }
+.message-content tr:last-child td:first-child { border-bottom-left-radius: 11px; }
+.message-content tr:last-child td:last-child { border-bottom-right-radius: 11px; }
+/* Keep table text fully opaque — never inherit dim/secondary colors */
+.message-content table code {
+  @apply text-accent-text;
+  background: var(--bg-muted);
+}
+.message-content table a { @apply text-accent-text; }
+.task-list { padding-left: 0 !important; @apply list-none; }
+.task-list-item { @apply flex; @apply items-baseline; gap: 6px; }
+.task-list-item input[type="checkbox"] {
+  @apply relative;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  @apply flex-none;
+  @apply appearance-none;
+  border: 1px solid var(--border-bright);
+  border-radius: 4px;
+  background: var(--bg-glass);
+}
+.task-list-item input[type="checkbox"]:checked { @apply border-accent; background: var(--accent); }
+.task-list-item input[type="checkbox"]:checked::after {
+  content: "";
+  @apply absolute border-white;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 4px;
+  border-left-width: 1.5px;
+  border-bottom-width: 1.5px;
+  transform: translate(-50%, -60%) rotate(-45deg);
+}
+
+/* Inline code outside of fenced blocks. */
+.message-content :not(pre) > code {
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-glass-strong);
+  @apply text-accent-text;
+  font: .9em/1.4 var(--app-font-mono);
+}
+
+/* highlight.js token classes mapped onto the theme palette, so highlighting
+   follows dark/light instead of shipping a second, conflicting color scheme. */
+.hljs-comment, .hljs-quote { color: var(--code-comment); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag, .hljs-formula { color: var(--code-keyword); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-meta-string { color: var(--code-string); }
+.hljs-number, .hljs-symbol, .hljs-bullet, .hljs-link { color: var(--code-number); }
+.hljs-title, .hljs-title.function_, .hljs-section, .hljs-name, .hljs-selector-id { color: var(--code-function); }
+.hljs-type, .hljs-class .hljs-title, .hljs-built_in, .hljs-title.class_, .hljs-selector-class { color: var(--code-type); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-property, .hljs-params { color: var(--code-attr); }
+.hljs-deletion { color: var(--code-deleted); }
+.hljs-addition { color: var(--code-added); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+
+/* Streaming cursor appended to the message that is still being written. */
+.message-content.streaming::after {
+  content: "";
+  @apply inline-block;
+  width: 5px;
+  height: 14px;
+  margin-left: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  vertical-align: -2px;
+  animation: contentBlink 1s steps(2, start) infinite;
+}
+
+/* KaTeX */
+.math-display, .katex-display {
+  @apply block;
+  margin: 1em 0 !important;
+  @apply overflow-x-auto;
+  @apply overflow-y-hidden;
+  @apply text-center;
+}
+.katex-display > .katex { @apply whitespace-normal; }
+.katex { @apply text-primary; font-size: 1.05em; }
+
+/* Global "hide thinking" toggle driven from the app controller. */
+body.hide-thinking .thinking-block { @apply hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .message-content.streaming::after { animation: none !important; }
+}

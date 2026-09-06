@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppSnapshot } from '../lib/types';
 import { controller } from '../app/controller';
-import { Icon } from './Icon';
+import { Check, X } from 'lucide-react';
 
 const STORAGE_KEY = 'picode:onboarded';
 
@@ -61,13 +61,13 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
             <span className="eyebrow">开始使用 PiCode</span>
             <strong className="block text-sm text-primary">三个决定，之后随时可改</strong>
           </div>
-          <button className="icon-btn" type="button" aria-label="跳过引导" onClick={finish}>×</button>
+          <button className="icon-btn" type="button" aria-label="跳过引导" onClick={finish}><X size={16} /></button>
         </div>
 
         <ol className="onboarding-steps mb-4 flex list-none gap-3 p-0" aria-label="步骤">
           {['选模型', '选权限', '选工作方式'].map((label, index) => (
-            <li className={`${index === step ? 'active' : index < step ? 'done' : ''} flex items-center gap-1.5 text-[11px] text-dim`} key={label}>
-              <span className="flex h-4 w-4 items-center justify-center rounded-full border border-line-bright text-[9px]">{index + 1}</span>{label}
+            <li className={`${index === step ? 'text-accent-text' : ''} flex items-center gap-1.5 text-[11px] text-dim`} key={label}>
+              <span className={`flex h-4 w-4 items-center justify-center rounded-full border text-[9px] ${index === step ? 'border-transparent! bg-accent! text-white!' : index < step ? 'border-transparent! bg-success! text-[#06281c]!' : 'border-line-bright'}`}>{index + 1}</span>{label}
             </li>
           ))}
         </ol>
@@ -79,7 +79,7 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
               <div className="grid max-h-[210px] grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-1.5 overflow-auto">
                 {models.map((model) => (
                   <button
-                    className={`flex flex-col items-start rounded-lg border border-line bg-glass px-2.5 py-1.5 text-left text-[11px] text-primary${model.id === snapshot.currentModelId ? ' onboarding-model active' : ' onboarding-model'}`}
+                    className={`flex flex-col items-start rounded-lg border bg-glass px-2.5 py-1.5 text-left text-[11px] text-primary${model.id === snapshot.currentModelId ? ' border-accent! bg-accent-subtle!' : ' border-line'}`}
                     type="button"
                     key={`${model.provider || ''}:${model.id}`}
                     onClick={() => void controller.setModel(model)}
@@ -124,12 +124,12 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
             <div className="flex flex-col gap-2">
               {MODE_NOTES.map(([title, description]) => (
                 <div className="flex items-start gap-2 text-[11px] text-secondary" key={title}>
-                  <Icon name="check" width={13} height={13} />
+                  <Check size={13} />
                   <div><strong className="block text-xs text-primary">{title}</strong><span>{description}</span></div>
                 </div>
               ))}
             </div>
-            <p className="hint">改完之后按 <kbd>⌘⇧G</kbd> 打开变更审阅：逐段暂存或撤销，逐行留意见再交回给 Pi。</p>
+            <p className="hint">改完之后按 <kbd>Ctrl+Shift+G</kbd> 打开变更审阅：逐段暂存或撤销，逐行留意见再交回给 Pi。</p>
           </div>
         ) : null}
 

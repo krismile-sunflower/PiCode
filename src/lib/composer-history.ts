@@ -41,7 +41,7 @@ export function writeInputHistory(history: readonly string[]): void {
   }
 }
 
-/** Newest first, de-duplicated, capped — the shape the ↑ key walks through. */
+/** Newest first, de-duplicated, capped — the shape the ArrowUp key walks through. */
 export function pushInputHistory(history: readonly string[], entry: string): string[] {
   const value = entry.trim();
   if (!value) return [...history];

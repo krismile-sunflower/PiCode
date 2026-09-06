@@ -4,7 +4,7 @@ import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import hljs from './highlight';
-import { Icon } from './Icon';
+import { Check, Copy } from 'lucide-react';
 
 /** Above this size, highlighting costs more than it is worth on every render. */
 const MAX_HIGHLIGHT_CHARS = 100_000;
@@ -40,18 +40,18 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     window.setTimeout(() => setCopied(false), 1500);
   };
   return (
-    <div className="code-block-wrapper">
-      <div className="code-block-header">
+    <div className="relative my-2 overflow-hidden rounded-[11px] border border-line bg-[var(--code-bg)]">
+      <div className="flex min-h-[34px] items-center justify-between border-b border-[var(--code-chrome-border)] bg-[var(--code-chrome-bg)] px-2.5 text-[9px] leading-none tracking-[0.04em] uppercase text-[var(--code-chrome-text)] [font-family:var(--app-font-mono)]">
         <span>{language || 'code'}</span>
-        <button className={`copy-btn${copied ? ' copied' : ''}`} type="button" onClick={copy}>
+        <button className={`rounded-md border-0 bg-transparent px-[7px] py-1 text-inherit [font:inherit] cursor-pointer hover:bg-[var(--code-chrome-hover)] hover:text-[var(--code-chrome-text-hover)]${copied ? ' text-success' : ''}`} type="button" onClick={copy}>
           {copied ? '已复制' : '复制'}
         </button>
       </div>
-      <pre>
+      <pre className="m-0 overflow-x-auto px-3.5 py-[13px] text-[12px] leading-[1.62] text-[var(--code-fg)] [font-family:var(--app-font-mono)] [tab-size:2]">
         {highlighted === null ? (
-          <code>{code}</code>
+          <code className="[font:inherit]">{code}</code>
         ) : (
-          <code className="hljs" dangerouslySetInnerHTML={{ __html: highlighted }} />
+          <code className="hljs [font:inherit]" dangerouslySetInnerHTML={{ __html: highlighted }} />
         )}
       </pre>
     </div>
@@ -64,7 +64,7 @@ const markdownComponents: Components = {
       {children}
     </a>
   ),
-  img: ({ alt, ...props }) => <img {...props} alt={alt || ''} className="inline-image" />,
+  img: ({ alt, ...props }) => <img {...props} alt={alt || ''} className="inline-image mt-1.5 mb-1.5 max-w-full rounded-[10px] border border-line" />,
   pre: ({ children }) => {
     if (isValidElement(children)) {
       const element = children as ReactElement<{ className?: string; children?: ReactNode }>;
@@ -76,7 +76,7 @@ const markdownComponents: Components = {
   },
   code: ({ children, ...props }) => <code {...props}>{children}</code>,
   table: ({ children }) => (
-    <div className="table-wrapper">
+    <div className="table-wrapper mt-3 mb-3.5 max-w-full overflow-x-auto rounded-xl border border-line-hover bg-elevated shadow-sm">
       <table>{children}</table>
     </div>
   ),
@@ -99,7 +99,7 @@ export function CopyMessageButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      className={`message-copy-btn${copied ? ' copied' : ''}`}
+      className={`mt-px inline-flex h-[22px] w-6 items-center justify-center rounded-[5px] border-0 bg-transparent text-dim opacity-100 cursor-pointer transition-[opacity,color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary group-hover:text-secondary focus-visible:text-secondary${copied ? ' text-success' : ''}`}
       type="button"
       aria-label="复制消息"
       onClick={async () => {
@@ -108,7 +108,7 @@ export function CopyMessageButton({ text }: { text: string }) {
         window.setTimeout(() => setCopied(false), 1500);
       }}
     >
-      <Icon name={copied ? 'check' : 'copy'} width={12} height={12} />
+      {copied ? <Check size={12} /> : <Copy size={12} />}
     </button>
   );
 }

@@ -154,6 +154,7 @@ pub fn run() {
             commands::sidecar::stop_pi,
             commands::sidecar::list_instances,
             commands::sidecar::switch_instance,
+            commands::sidecar::stop_instance,
             commands::sessions::list_local_sessions,
             commands::worktrees::create_session_worktree,
             commands::worktrees::list_session_worktrees,

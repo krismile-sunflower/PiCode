@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { ArrowDown, ArrowUp, X } from 'lucide-react';
 
 interface ShortcutGroup {
   title: string;
-  items: Array<{ keys: string; label: string }>;
+  items: Array<{ keys: ReactNode; label: string }>;
 }
 
 /**
@@ -16,13 +17,13 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: '全局',
     items: [
-      { keys: '⌘K', label: '打开命令面板' },
-      { keys: '⌘N', label: '新建会话' },
-      { keys: '⌘B', label: '显示/隐藏会话栏' },
-      { keys: '⌘⇧F', label: '显示/隐藏文件栏' },
-      { keys: '⌘⇧G', label: '打开 Git 变更审阅' },
-      { keys: '⌘/', label: '打开这份快捷键清单' },
-      { keys: 'Esc', label: '逐级退出：面板 → 视图 → 停止生成' },
+      { keys: 'Ctrl+K', label: '打开命令面板' },
+      { keys: 'Ctrl+N', label: '新建会话' },
+      { keys: 'Ctrl+B', label: '显示/隐藏会话栏' },
+      { keys: 'Ctrl+Shift+F', label: '显示/隐藏文件栏' },
+      { keys: 'Ctrl+Shift+G', label: '打开 Git 变更审阅' },
+      { keys: 'Ctrl+/', label: '打开这份快捷键清单' },
+      { keys: 'Esc', label: '逐级退出（面板 / 视图 / 停止生成）' },
     ],
   },
   {
@@ -31,15 +32,15 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: '/', label: '从任意位置聚焦输入框' },
       { keys: 'Enter', label: '发送' },
       { keys: 'Shift+Enter', label: '换行' },
-      { keys: '↑ / ↓', label: '回溯最近 50 条输入历史' },
+      { keys: <><ArrowUp size={10} aria-hidden="true" /> / <ArrowDown size={10} aria-hidden="true" /></>, label: '回溯最近 50 条输入历史' },
       { keys: '/ + Tab', label: '补全斜杠命令' },
     ],
   },
   {
     title: '权限请求',
     items: [
-      { keys: '⌘Enter', label: '仅允许本次' },
-      { keys: '⌘⇧Enter', label: '本会话允许' },
+      { keys: 'Ctrl+Enter', label: '仅允许本次' },
+      { keys: 'Ctrl+Shift+Enter', label: '本会话允许' },
       { keys: 'Esc', label: '拒绝（5 分钟无响应自动拒绝）' },
     ],
   },
@@ -90,7 +91,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose(): voi
       >
         <div className="mb-3.5 flex items-center justify-between text-sm text-primary">
           <strong>键盘快捷键</strong>
-          <button className="icon-btn" type="button" ref={closeRef} aria-label="关闭" onClick={onClose}>×</button>
+          <button className="icon-btn" type="button" ref={closeRef} aria-label="关闭" onClick={onClose}><X size={16} /></button>
         </div>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-x-7 gap-y-4">
           {SHORTCUT_GROUPS.map((group) => (

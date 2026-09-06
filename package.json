@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "pnpm typecheck && pnpm test && pnpm lint:css && pnpm build:frontend",
+    "check": "pnpm typecheck && pnpm test && pnpm lint:css && pnpm check:no-emoji && pnpm build:frontend",
     "lint:css": "stylelint \"src/tailwind.css\" \"src/styles/*.css\"",
     "build:frontend": "vite build",
     "dev:desktop": "pnpm install:extensions && pnpm dev",
@@ -24,7 +24,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:dev:reuse": "tauri dev --config src-tauri/tauri.reuse-dev.conf.json",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "check:no-emoji": "node scripts/check-no-emoji.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
@@ -36,6 +37,7 @@
     "@tauri-apps/plugin-opener": "^2.5.4",
     "highlight.js": "^11.12.0",
     "katex": "^0.17.0",
+    "lucide-react": "^1.41.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",

@@ -40,26 +40,75 @@ import { apiJson, isDesktop } from '../lib/desktop';
 import { usageByModel, usageCsv } from '../lib/usage-report';
 import { applyMention, expandMentions, matchMention, relativeMention, type MentionMatch } from '../lib/mentions';
 import { pushInputHistory, readDraft, readInputHistory, writeDraft, writeInputHistory } from '../lib/composer-history';
-import { Icon, type IconName } from './Icon';
-
-const thinkingLabels: Record<string, string> = {
-  off: '关闭',
-  minimal: '极简',
-  low: '较低',
-  medium: '中等',
-  high: '较高',
-  xhigh: '最高',
-  max: '最高',
-};
+import { Select } from './Select';
+import { THINKING_LEVELS, thinkingLevelLabel } from '../lib/thinking';
+import {
+  ArrowDown,
+  ArrowUp,
+  Brain,
+  ChartNoAxesColumn,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  CircleCheck,
+  Eye,
+  ExternalLink,
+  File as FileIcon,
+  FileText,
+  Folder,
+  FolderTree,
+  FoldVertical,
+  ImageIcon,
+  Info,
+  Keyboard,
+  LayoutGrid,
+  Menu,
+  Mic,
+  PanelLeft,
+  PenLine,
+  Plus,
+  Search,
+  Settings,
+  ShieldCheck,
+  Shrink,
+  Square,
+  TriangleAlert,
+  UnfoldVertical,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 
 interface HeaderProps {
   snapshot: AppSnapshot;
+  sidebarOpen: boolean;
   onOpenSidebar(): void;
   fileOpen: boolean;
   onToggleFiles(): void;
 }
 
-export function Header({ snapshot, onOpenSidebar, fileOpen, onToggleFiles }: HeaderProps) {
+const CONTEXT_SEGMENT_COLORS: Record<string, string> = {
+  system: 'bg-thinking-accent',
+  output: 'bg-thinking-accent',
+  messages: 'bg-accent',
+  tools: 'bg-tool-accent',
+  cache: 'bg-success opacity-[0.72]',
+  'cache-write': 'bg-warning opacity-80',
+  estimated: 'bg-tool-accent opacity-[0.72]',
+  free: 'bg-transparent',
+};
+
+const CONTEXT_DOT_COLORS: Record<string, string> = {
+  system: 'bg-thinking-accent',
+  output: 'bg-thinking-accent',
+  messages: 'bg-accent',
+  tools: 'bg-tool-accent',
+  cache: 'bg-success opacity-[0.72]',
+  'cache-write': 'bg-warning opacity-80',
+  estimated: 'bg-tool-accent opacity-[0.72]',
+  free: 'border border-line bg-muted',
+};
+
+export function Header({ snapshot, sidebarOpen, onOpenSidebar, fileOpen, onToggleFiles }: HeaderProps) {
   const [modelsOpen, setModelsOpen] = useState(false);
   const [modelQuery, setModelQuery] = useState('');
   const [metricsOpen, setMetricsOpen] = useState(false);
@@ -143,98 +192,104 @@ export function Header({ snapshot, onOpenSidebar, fileOpen, onToggleFiles }: Hea
   };
 
   return (
-    <header className="header">
-      <div className="header-left">
-        <button className="sidebar-toggle mobile-sidebar-toggle" type="button" title="打开会话栏" aria-label="打开会话栏" onClick={onOpenSidebar}>
-          <Icon name="bars" width={18} height={18} />
+    <header className="absolute inset-x-0 top-0 z-40 flex min-h-(--header-height) items-center justify-between gap-2.5 border-b border-line bg-(--header-bg) px-[18px] shadow-[0_1px_0_rgba(255,255,255,0.018)] [backdrop-filter:blur(22px)_saturate(120%)] max-narrow:px-3 max-compact:px-[9px]">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <button className={`icon-btn ${sidebarOpen ? 'hidden' : 'inline-flex'} max-compact:inline-flex!`} type="button" title="打开会话栏" aria-label="打开会话栏" onClick={onOpenSidebar}>
+          <Menu size={18} />
         </button>
-        <div className="header-context">
-          <span className="header-workspace" title={workspaceTitle}>{workspaceTitle}</span>
-          <strong className="header-session">{snapshot.selectedSessionTitle || '新会话'}</strong>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-[1.25] max-compact:hidden">
+          <span className="overflow-hidden max-w-[260px] text-[9px] font-semibold tracking-[0.055em] text-dim uppercase text-ellipsis whitespace-nowrap max-narrow:hidden" title={workspaceTitle}>{workspaceTitle}</span>
+          <strong className="overflow-hidden max-w-[260px] text-[14px] font-bold tracking-[-0.02em] text-primary text-ellipsis whitespace-nowrap max-narrow:max-w-[180px] max-compact:text-[13px]">{snapshot.selectedSessionTitle || '新会话'}</strong>
         </div>
-        <div className="status" title={snapshot.connection === 'idle' ? '打开一个项目以启动 Pi' : 'Pi 连接状态'}>
-          <span className={`status-indicator ${snapshot.isStreaming ? 'streaming' : snapshot.connection}`} />
-          <span className="status-text">{connectionText}</span>
+        <div className="ml-2 inline-flex items-center gap-1.5 border-l border-line pl-[13px] max-compact:m-0 max-compact:border-0 max-compact:p-0" title={snapshot.connection === 'idle' ? '打开一个项目以启动 Pi' : 'Pi 连接状态'}>
+          <span className={`h-[7px] w-[7px] rounded-full border-0 ${snapshot.isStreaming || snapshot.connection === 'connecting' ? 'bg-accent animate-[workbenchPulse_1.4s_ease-in-out_infinite]' : snapshot.connection === 'connected' ? 'bg-success shadow-[0_0_0_3px_color-mix(in_srgb,var(--success)_12%,transparent)]' : snapshot.connection === 'disconnected' ? 'bg-error' : 'bg-ghost'}`} />
+          <span className="text-[10px] font-medium text-dim whitespace-nowrap max-narrow:hidden">{connectionText}</span>
         </div>
       </div>
-      <div className="header-right">
-        <div className={`model-dropdown${modelsOpen ? ' open' : ''}`} ref={modelRef}>
-          <button className="model-dropdown-btn" type="button" title="切换模型" aria-haspopup="listbox" aria-expanded={modelsOpen} onClick={() => setModelsOpen((value) => !value)}>
-            <span className="model-dropdown-label">{currentModelLabel}</span>
-            <svg className="model-dropdown-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1 5 5 9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+      <div className="flex flex-none min-w-0 items-center gap-2.5">
+        <div className="relative" ref={modelRef}>
+          <button className="inline-flex h-[30px] items-center gap-1.5 rounded-[7px] border border-transparent bg-glass px-2.5 text-[10px] text-secondary cursor-pointer hover:border-line hover:bg-elevated hover:text-primary max-compact:max-w-[130px]" type="button" title="切换模型" aria-haspopup="listbox" aria-expanded={modelsOpen} onClick={() => setModelsOpen((value) => !value)}>
+            <span className="overflow-hidden max-w-[156px] text-ellipsis whitespace-nowrap">{currentModelLabel}</span>
+            <ChevronDown size={12} className={`flex-none opacity-70 transition-transform duration-[var(--duration-fast)] ease-[var(--ease)]${modelsOpen ? ' rotate-180' : ''}`} aria-hidden="true" />
           </button>
           {modelsOpen ? (
-            <div className="model-dropdown-menu" role="listbox" aria-label="选择模型">
-              <div className="model-dropdown-head">
+            <div className="absolute right-0 top-[calc(100%_+_8px)] z-[1001] w-[min(330px,calc(100vw_-_24px))] max-h-[420px] overflow-hidden rounded-[10px] border border-line bg-frosted p-2 shadow-[var(--shadow-lg),var(--shadow-inset)]" role="listbox" aria-label="选择模型">
+              <div className="flex items-center justify-between gap-3 px-1 pt-[3px] pb-[9px] text-[11px] font-semibold text-primary">
                 <span>选择模型</span>
-                <span className="model-dropdown-provider">{currentProvider || '未选择供应商'}</span>
+                <span className="max-w-[150px] overflow-hidden rounded-full bg-accent-subtle px-[7px] py-0.5 text-[9px] font-semibold text-accent-text text-ellipsis whitespace-nowrap">{currentProvider || '未选择供应商'}</span>
               </div>
-              <input className="model-dropdown-search" type="search" aria-label="搜索模型" placeholder={currentProvider ? `在 ${currentProvider} 中搜索…` : '搜索模型…'} value={modelQuery} onChange={(event) => setModelQuery(event.target.value)} autoFocus />
-              <div className="model-dropdown-items">
+              <input className="mb-[7px] h-9 w-full rounded-lg border border-line bg-muted px-[11px] text-[11px] text-primary outline-0 focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-subtle)] placeholder:text-dim" type="search" aria-label="搜索模型" placeholder={currentProvider ? `在 ${currentProvider} 中搜索…` : '搜索模型…'} value={modelQuery} onChange={(event) => setModelQuery(event.target.value)} autoFocus />
+              <div className="flex max-h-[340px] flex-col gap-0.5 overflow-y-auto">
                 {models.length ? models.map((model) => {
                   const active = model.id === snapshot.currentModelId && model.provider === currentProvider;
                   const context = model.contextWindow || model.context_window || 0;
                   return (
-                    <button className={`model-dropdown-item${active ? ' active' : ''}`} type="button" role="option" aria-selected={active} title={model.id} key={`${model.provider || ''}:${model.id}`} onClick={() => void selectModel(model)}>
-                      <span className="model-dropdown-item-main">
-                        <span className="model-dropdown-item-name">{shortModelName(model.id)}</span>
-                        {model.name && model.name !== model.id ? <span className="model-dropdown-item-detail">{model.name}</span> : null}
+                    <button className={`grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-transparent px-[9px] py-[7px] text-left text-secondary cursor-pointer appearance-none hover:border-line hover:bg-glass-hover hover:text-primary${active ? ' border-[color-mix(in_srgb,var(--accent)_24%,var(--border))] bg-accent-subtle text-accent-text' : ''}`} type="button" role="option" aria-selected={active} title={model.id} key={`${model.provider || ''}:${model.id}`} onClick={() => void selectModel(model)}>
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="min-w-0 overflow-hidden font-mono text-[11px] leading-[1.3] text-ellipsis whitespace-nowrap">{shortModelName(model.id)}</span>
+                        {model.name && model.name !== model.id ? <span className="min-w-0 overflow-hidden text-[9px] leading-[1.25] text-dim text-ellipsis whitespace-nowrap">{model.name}</span> : null}
                       </span>
-                      <span className="model-dropdown-item-meta">
-                        {context ? <span className="model-dropdown-item-ctx">{Math.round(context / 1000)}k</span> : null}
-                        {active ? <Icon name="check" width={13} height={13} /> : null}
+                      <span className="inline-flex min-w-[34px] items-center justify-end gap-[7px] text-accent-text">
+                        {context ? <span className="flex-none font-mono text-[9px] leading-none text-dim">{Math.round(context / 1000)}k</span> : null}
+                        {active ? <Check size={13} /> : null}
                       </span>
                     </button>
                   );
-                }) : <div className="model-dropdown-item empty">当前供应商没有可用模型</div>}
+                }) : <div className="block min-h-0 px-2.5 py-[22px] text-center text-[11px] text-dim cursor-default">当前供应商没有可用模型</div>}
               </div>
             </div>
           ) : null}
         </div>
-        <button className={`thinking-tag${snapshot.thinkingLevel === 'off' || !snapshot.thinkingSupported ? ' off' : ''}`} type="button" disabled={!snapshot.thinkingSupported} title={snapshot.thinkingSupported ? '切换新回复的思考级别' : '当前模型不支持 Pi 思考级别'} onClick={() => void controller.cycleThinking()}>
-          思考：{snapshot.thinkingSupported ? thinkingLabels[snapshot.thinkingLevel] || snapshot.thinkingLevel : '不可用'}
-        </button>
-        <div className="session-metrics" ref={metricsRef}>
-          <button className="session-metrics-trigger" type="button" title="查看会话上下文" onClick={() => setMetricsOpen((value) => !value)}>
-            <Icon name="chart" />
-            {contextKnown && used > 0 ? <span className={`pill token-usage visible${percent >= 80 ? ' critical' : percent >= 60 ? ' warning' : ''}`}>{total ? (percent === 0 ? '<1%' : `${percent}%`) : formatTokens(used)}</span> : null}
-            {snapshot.sessionTotalCost > 0 ? <span className="pill session-cost visible">${snapshot.sessionTotalCost.toFixed(4)}</span> : null}
+        <Select
+          variant="glass"
+          ariaLabel="思考强度"
+          value={snapshot.thinkingLevel}
+          className="max-compact:hidden!"
+          leading={<span>思考：</span>}
+          options={THINKING_LEVELS.map((level) => ({ value: level, label: thinkingLevelLabel(level) }))}
+          onChange={(level) => void controller.setThinkingLevel(level)}
+        />
+        <div className="relative" ref={metricsRef}>
+          <button className="inline-flex h-[30px] items-center gap-1.5 rounded-[7px] border border-transparent bg-glass px-[9px] text-[10px] text-secondary cursor-pointer hover:border-line hover:bg-elevated hover:text-primary max-compact:w-8 max-compact:justify-center max-compact:p-0" type="button" title="查看会话上下文" onClick={() => setMetricsOpen((value) => !value)}>
+            <ChartNoAxesColumn size={16} />
+            {contextKnown && used > 0 ? <span className={`font-mono text-[10px] leading-none whitespace-nowrap max-compact:hidden! ${percent >= 80 ? 'text-error' : percent >= 60 ? 'text-warning' : ''}`}>{total ? (percent === 0 ? '<1%' : `${percent}%`) : formatTokens(used)}</span> : null}
+            {snapshot.sessionTotalCost > 0 ? <span className="font-mono text-[10px] leading-none whitespace-nowrap max-compact:hidden!">${snapshot.sessionTotalCost.toFixed(4)}</span> : null}
           </button>
           {metricsOpen ? (
-            <div className="context-viz">
-              <div className="context-viz-title">会话上下文</div>
+            <div className="absolute right-0 top-[calc(100%_+_8px)] z-[1001] w-[330px] max-w-[calc(100vw_-_24px)] rounded-[10px] border border-line bg-frosted p-[15px] shadow-[var(--shadow-lg),var(--shadow-inset)]">
+              <div className="mb-[11px] text-[12px] font-semibold text-primary">会话上下文</div>
               {segments.length ? (
                 <>
-                  <div className="context-bar">{segments.filter((segment) => segment.tokens > 0).map((segment) => <div className={`context-bar-segment ${segment.key}`} style={{ width: `${Math.min(100, (segment.tokens / total) * 100)}%` }} title={`${segment.label}: ${formatTokens(segment.tokens)}`} key={segment.key} />)}</div>
-                  <div className="context-legend">{segments.map((segment) => <div className="context-legend-item" key={segment.key}><span className="context-legend-left"><span className={`context-legend-dot ${segment.key}`} />{segment.label}</span><span className="context-legend-value">{formatTokens(segment.tokens)}</span></div>)}</div>
-                  <div className="context-viz-footer"><span>已使用 {percent}%</span><span>{formatTokens(used)} / {formatTokens(total)}</span></div>
-                  {percent >= 80 ? <button className="compact-btn" type="button" onClick={() => void controller.compact()}>压缩上下文</button> : null}
+                  <div className="mb-[11px] flex h-5 overflow-hidden rounded-[7px] border border-line bg-muted">{segments.filter((segment) => segment.tokens > 0).map((segment) => <div className={`h-full min-w-[2px] transition-[width] duration-[var(--duration-slow)] ease-[var(--ease)] ${CONTEXT_SEGMENT_COLORS[segment.key] || 'bg-transparent'}`} style={{ width: `${Math.min(100, (segment.tokens / total) * 100)}%` }} title={`${segment.label}: ${formatTokens(segment.tokens)}`} key={segment.key} />)}</div>
+                  <div className="flex flex-col gap-1.5">{segments.map((segment) => <div className="flex items-center justify-between text-[10px] text-secondary" key={segment.key}><span className="flex items-center gap-1.5"><span className={`h-[7px] w-[7px] flex-none rounded-[2px] ${CONTEXT_DOT_COLORS[segment.key] || ''}`} />{segment.label}</span><span className="font-mono text-[9px] leading-[1.4] text-dim tabular-nums">{formatTokens(segment.tokens)}</span></div>)}</div>
+                  <div className="mt-2.5 flex items-center justify-between border-t border-line pt-[9px] font-mono text-[9px] leading-[1.4] text-dim"><span>已使用 {percent}%</span><span>{formatTokens(used)} / {formatTokens(total)}</span></div>
+                  {percent >= 80 ? <button className="compact-btn mt-3 w-full" type="button" onClick={() => void controller.compact()}>压缩上下文</button> : null}
                 </>
-              ) : <div className="context-viz-footer"><span>{hasReportedContext && reportedTokens == null ? '压缩后等待下一次回复确认' : '尚无用量数据'}</span></div>}
-              <div className="usage-breakdown">
-                <div className="context-viz-title">用量与成本</div>
+              ) : <div className="mt-2.5 flex items-center justify-between border-t border-line pt-[9px] font-mono text-[9px] leading-[1.4] text-dim"><span>{hasReportedContext && reportedTokens == null ? '压缩后等待下一次回复确认' : '尚无用量数据'}</span></div>}
+              <div className="mt-3 border-t border-line pt-2.5">
+                <div className="mb-[11px] text-[12px] font-semibold text-primary">用量与成本</div>
                 {usageRows.length ? (
                   <>
-                    <table className="usage-table">
+                    <table className="my-1.5 w-full border-collapse text-[10px] tabular-nums">
                       <thead>
-                        <tr><th>模型</th><th>回复</th><th>输入</th><th>输出</th><th>费用</th></tr>
+                        <tr><th className="px-1 py-0.5 text-left font-medium text-dim">模型</th><th className="px-1 py-0.5 text-right font-medium text-dim">回复</th><th className="px-1 py-0.5 text-right font-medium text-dim">输入</th><th className="px-1 py-0.5 text-right font-medium text-dim">输出</th><th className="px-1 py-0.5 text-right font-medium text-dim">费用</th></tr>
                       </thead>
                       <tbody>
                         {usageRows.map((row) => (
                           <tr key={row.model}>
-                            <td title={row.model}>{shortModelName(row.model) || row.model}</td>
-                            <td>{row.messages}</td>
-                            <td>{formatTokens(row.input + row.cacheRead)}</td>
-                            <td>{formatTokens(row.output)}</td>
-                            <td>{row.cost ? `$${row.cost.toFixed(4)}` : '—'}</td>
+                            <td className="max-w-[110px] overflow-hidden border-t border-line px-1 py-[3px] text-left text-primary text-ellipsis whitespace-nowrap" title={row.model}>{shortModelName(row.model) || row.model}</td>
+                            <td className="border-t border-line px-1 py-[3px] text-right text-secondary">{row.messages}</td>
+                            <td className="border-t border-line px-1 py-[3px] text-right text-secondary">{formatTokens(row.input + row.cacheRead)}</td>
+                            <td className="border-t border-line px-1 py-[3px] text-right text-secondary">{formatTokens(row.output)}</td>
+                            <td className="border-t border-line px-1 py-[3px] text-right text-secondary">{row.cost ? `$${row.cost.toFixed(4)}` : '—'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    <div className="context-viz-footer">
+                    <div className="mt-2.5 flex items-center justify-between border-t border-line pt-[9px] font-mono text-[9px] leading-[1.4] text-dim">
                       <span>会话累计 {snapshot.sessionTotalCost ? `$${snapshot.sessionTotalCost.toFixed(4)}` : '$0.0000'}</span>
                       <button
-                        className="usage-export"
+                        className="rounded-[var(--radius-pill)] border border-line bg-glass px-2 py-0.5 text-[10px] text-secondary hover:border-accent hover:text-accent-text"
                         type="button"
                         onClick={() => {
                           void navigator.clipboard.writeText(usageCsv(usageRows));
@@ -247,12 +302,12 @@ export function Header({ snapshot, onOpenSidebar, fileOpen, onToggleFiles }: Hea
                       </button>
                     </div>
                   </>
-                ) : <div className="context-viz-footer"><span>本会话还没有产生用量记录</span></div>}
+                ) : <div className="mt-2.5 flex items-center justify-between border-t border-line pt-[9px] font-mono text-[9px] leading-[1.4] text-dim"><span>本会话还没有产生用量记录</span></div>}
               </div>
             </div>
           ) : null}
         </div>
-        <button id="file-sidebar-toggle" className={`icon-btn${fileOpen ? ' active' : ''}`} type="button" title="打开文件栏" aria-label="打开文件栏" aria-expanded={fileOpen} onClick={onToggleFiles}><Icon name="folder" width={17} height={17} /></button>
+        <button id="file-sidebar-toggle" className="icon-btn" type="button" title="打开文件栏" aria-label="打开文件栏" aria-expanded={fileOpen} onClick={onToggleFiles}><Folder size={17} /></button>
       </div>
     </header>
   );
@@ -692,121 +747,121 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
   };
 
   return (
-    <div className="input-area">
+    <div className="relative z-30 mt-0.5 flex-none overflow-visible border-0 border-t border-t-line bg-canvas pt-[14px] pb-[15px] px-[max(20px,calc((100%_-_var(--composer-max-width))/2))] [backdrop-filter:none] max-compact:p-2.5">
       {zoomedImage ? (
-        <div className="attachment-lightbox" role="dialog" aria-modal="true" aria-label="附件预览" onClick={() => setZoomedImage(null)}>
-          <img src={`data:${zoomedImage.mimeType};base64,${zoomedImage.data}`} alt="附件预览" />
-          <button className="attachment-lightbox-close" type="button" aria-label="关闭预览"><Icon name="close" width={14} height={14} /></button>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[rgba(0,0,0,0.74)] p-10 [backdrop-filter:blur(6px)] cursor-zoom-out" role="dialog" aria-modal="true" aria-label="附件预览" onClick={() => setZoomedImage(null)}>
+          <img src={`data:${zoomedImage.mimeType};base64,${zoomedImage.data}`} alt="附件预览" className="max-h-full max-w-full rounded-[10px] object-contain shadow-md" />
+          <button className="absolute right-[18px] top-[18px] inline-flex h-[30px] w-[30px] items-center justify-center rounded-full border-0 bg-[rgba(255,255,255,0.14)] p-0 text-white cursor-pointer hover:bg-[rgba(255,255,255,0.26)]" type="button" aria-label="关闭预览"><X size={14} /></button>
         </div>
       ) : null}
-      <div className="mobile-model-bar" />
-      <div className="composer-shell">
+      <div className="overflow-hidden rounded-xl border border-line-hover bg-elevated shadow-[var(--shadow-md),var(--shadow-inset)] transition-[border-color,box-shadow] duration-[var(--duration-fast)] focus-within:border-[color-mix(in_srgb,var(--accent)_62%,var(--border))] focus-within:shadow-[0_0_0_3px_var(--accent-subtle),var(--shadow-md)]">
         {planReadOnly ? (
-          <div className="plan-readonly-guard" role="status">
-            <Icon name="shield" width={13} height={13} />
-            <span><strong>计划模式</strong> 只读分析中：可以探索与搜索，不能改动项目。</span>
+          <div className="flex min-h-8 items-center gap-[7px] border-b border-b-[color-mix(in_srgb,var(--warning)_32%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_10%,var(--bg-elevated))] px-3 py-[7px] text-[12px] leading-[1.45] text-[color-mix(in_srgb,var(--warning)_78%,var(--text-primary))]" role="status">
+            <ShieldCheck size={13} />
+            <span><strong className="mr-1 text-primary [font-weight:680]">计划模式</strong> 只读分析中：可以探索与搜索，不能改动项目。</span>
           </div>
         ) : null}
         {editingMessage ? (
-          <div className="composer-editing-banner">
-            <span><Icon name="edit" width={13} height={13} /> 正在重新编辑最后一条消息</span>
-            <button type="button" onClick={() => { setText(''); setImages([]); onCancelEditing(); }}>取消</button>
+          <div className="flex min-h-[34px] items-center justify-between gap-2.5 border-b border-b-[color-mix(in_srgb,var(--accent)_24%,var(--border))] bg-accent-subtle px-3 py-[7px] text-[10px] text-accent-text">
+            <span className="inline-flex items-center gap-1.5"><PenLine size={13} /> 正在重新编辑最后一条消息</span>
+            <button className="rounded-[5px] border-0 bg-transparent px-[7px] py-[3px] text-[10px] text-secondary cursor-pointer hover:bg-glass-hover hover:text-primary" type="button" onClick={() => { setText(''); setImages([]); onCancelEditing(); }}>取消</button>
           </div>
         ) : null}
         {snapshot.queue.length ? (
-          <div className="queued-messages">
-            {snapshot.queue.map((item) => <div className="queued-msg" key={item.id}><span className="queued-msg-label">排队中</span><span className="queued-msg-text">{item.message}</span><button className="queued-msg-cancel" type="button" title="取消排队" onClick={() => controller.cancelQueuedMessage(item.id)}>×</button></div>)}
+          <div className="flex max-w-none flex-col gap-[5px] px-[9px] pt-2 pb-0">
+            {snapshot.queue.map((item) => <div className="flex min-h-[34px] items-center gap-[7px] rounded-[9px] border border-line bg-muted px-[9px] py-1.5 text-[11px] text-secondary" key={item.id}><span className="text-accent-text">排队中</span><span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{item.message}</span><button className="inline-flex h-[22px] w-[22px] flex-none items-center justify-center rounded-[5px] border-0 bg-transparent p-0 text-dim cursor-pointer hover:bg-glass-hover hover:text-error" type="button" title="取消排队" onClick={() => controller.cancelQueuedMessage(item.id)}><X size={12} /></button></div>)}
           </div>
         ) : null}
         {images.length || pendingFiles.length || attachingCount ? (
-          <div className="composer-attachments">
-            <div className="composer-attachments-head">
-              <span className="composer-attachments-title">
-                <Icon name="image" width={12} height={12} />
+          <div className="border-b border-b-[color-mix(in_srgb,var(--border)_62%,transparent)] px-[11px] pt-[9px] pb-[3px]">
+            <div className="mb-[7px] flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-[5px] text-[10px] tracking-[0.02em] text-dim">
+                <ImageIcon size={12} />
                 附件 {images.length + pendingFiles.length}
-                {attachingCount ? <em className="composer-attachments-busy">正在处理 {attachingCount}…</em> : null}
+                {attachingCount ? <em className="text-accent-text not-italic">正在处理 {attachingCount}…</em> : null}
               </span>
-              <button type="button" onClick={clearAttachments}>清空</button>
+              <button className="rounded-[5px] border-0 bg-transparent px-[7px] py-0.5 text-[10px] text-dim cursor-pointer hover:bg-glass-hover hover:text-secondary" type="button" onClick={clearAttachments}>清空</button>
             </div>
-            <div className="composer-attachment-list">
+            <div className="flex gap-2 pb-[3px] overflow-x-auto">
               {images.map((image, index) => (
-                <div className="attachment-card" key={`${image.data.slice(0, 24)}-${index}`}>
-                  <button className="attachment-thumb" type="button" title="点击查看大图" onClick={() => setZoomedImage(image)}>
-                    <img src={`data:${image.mimeType};base64,${image.data}`} alt={`待发送图片 ${index + 1}`} />
-                    <span className="attachment-zoom"><Icon name="eye" width={13} height={13} /></span>
+                <div className="group relative flex h-16 w-16 flex-none items-center justify-center overflow-hidden rounded-[10px] border border-line bg-muted transition-[border-color,transform] duration-[var(--duration-fast)] hover:border-line-hover" key={`${image.data.slice(0, 24)}-${index}`}>
+                  <button className="block h-full w-full border-0 bg-transparent p-0 cursor-zoom-in" type="button" title="点击查看大图" onClick={() => setZoomedImage(image)}>
+                    <img src={`data:${image.mimeType};base64,${image.data}`} alt={`待发送图片 ${index + 1}`} className="block h-full w-full object-cover" />
+                    <span className="absolute inset-0 flex items-center justify-center bg-[rgba(0,0,0,0.46)] text-white opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover:opacity-100 group-focus-visible:opacity-100"><Eye size={13} /></span>
                   </button>
-                  <button className="attachment-remove" type="button" aria-label={`移除图片 ${index + 1}`} onClick={() => setImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}><Icon name="close" width={9} height={9} /></button>
+                  <button className="absolute right-[3px] top-[3px] inline-flex h-[17px] w-[17px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.62)] p-0 text-white opacity-0 cursor-pointer transition-[opacity,background-color] duration-[var(--duration-fast)] group-hover:opacity-100 focus-visible:opacity-100 hover:bg-error" type="button" aria-label={`移除图片 ${index + 1}`} onClick={() => setImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}><X size={9} /></button>
                 </div>
               ))}
               {pendingFiles.map((file) => (
-                <div className="attachment-card attachment-file" title={file.path} key={file.path}>
-                  <span className="attachment-file-ext">{file.ext ? file.ext.slice(0, 4).toUpperCase() : 'FILE'}</span>
-                  <span className="attachment-file-name">{file.name}</span>
-                  <button className="attachment-remove" type="button" aria-label={`移除文件 ${file.name}`} onClick={() => removeFile(file)}><Icon name="close" width={9} height={9} /></button>
+                <div className="group relative flex h-16 w-auto min-w-[88px] max-w-[190px] flex-none flex-col items-start justify-center gap-1 overflow-hidden rounded-[10px] border border-line bg-muted p-0 px-2.5 transition-[border-color,transform] duration-[var(--duration-fast)] hover:border-line-hover" title={file.path} key={file.path}>
+                  <span className="text-[9px] font-semibold tracking-[0.06em] text-dim">{file.ext ? file.ext.slice(0, 4).toUpperCase() : 'FILE'}</span>
+                  <span className="max-w-full overflow-hidden text-[10px] text-secondary text-ellipsis whitespace-nowrap">{file.name}</span>
+                  <button className="absolute right-[3px] top-[3px] inline-flex h-[17px] w-[17px] items-center justify-center rounded-full border-0 bg-[rgba(0,0,0,0.62)] p-0 text-white opacity-0 cursor-pointer transition-[opacity,background-color] duration-[var(--duration-fast)] group-hover:opacity-100 focus-visible:opacity-100 hover:bg-error" type="button" aria-label={`移除文件 ${file.name}`} onClick={() => removeFile(file)}><X size={9} /></button>
                 </div>
               ))}
-              {Array.from({ length: attachingCount }, (_, index) => <div className="attachment-card attachment-loading" key={`attaching-${index}`} aria-hidden="true" />)}
+              {Array.from({ length: attachingCount }, (_, index) => <div className="h-16 w-16 flex-none rounded-[10px] border border-line bg-[linear-gradient(100deg,var(--bg-muted)_30%,var(--bg-glass-hover)_50%,var(--bg-muted)_70%)] [background-size:240%_100%] animate-[attachment-shimmer_1.15s_linear_infinite]" key={`attaching-${index}`} aria-hidden="true" />)}
             </div>
           </div>
         ) : null}
-        <form id="chat-form" onSubmit={(event) => void submit(event)}>
+        <form id="chat-form" className="block w-full" onSubmit={(event) => void submit(event)}>
           {slashOpen && slashResults.length ? (
-            <div className="slash-menu" role="listbox" aria-label="斜杠命令">
-              <div className="slash-menu-header">命令 · {slashResults.length} 项</div>
-              <div className="slash-menu-items" ref={slashListRef}>
+            <div className="flex max-h-[min(420px,52vh)] flex-col overflow-hidden border-b border-b-line bg-elevated" role="listbox" aria-label="斜杠命令">
+              <div className="flex-none px-3 pt-2 pb-1 text-[9px] font-bold tracking-[0.06em] text-dim uppercase">命令 · {slashResults.length} 项</div>
+              <div className="min-h-0 flex-auto overflow-x-hidden overflow-y-auto px-1.5 pt-0.5 pb-1.5 [overscroll-behavior:contain] [scroll-padding-block:4px]" ref={slashListRef}>
                 {slashResults.map((command, index) => (
                   <button
                     key={`${command.source || 'cmd'}:${command.name}`}
                     data-slash-index={index}
-                    className={`slash-menu-item${index === slashIndex ? ' active' : ''}`}
+                    className={`grid w-full min-h-9 grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_auto] items-center gap-2.5 rounded-lg border border-transparent bg-transparent px-[9px] py-[7px] text-left text-secondary cursor-pointer hover:border-[color-mix(in_srgb,var(--accent)_26%,var(--border))] hover:bg-accent-subtle hover:text-primary${index === slashIndex ? ' border-[color-mix(in_srgb,var(--accent)_26%,var(--border))]! bg-accent-subtle! text-primary!' : ''}`}
                     type="button"
                     role="option"
                     aria-selected={index === slashIndex}
                     onMouseEnter={() => setSlashIndex(index)}
                     onClick={() => applySlash(command)}
                   >
-                    <span className="slash-menu-item-main">
-                      <span className="slash-menu-item-name">/{command.name}</span>
-                      {command.argumentHint ? <span className="slash-menu-item-hint">{command.argumentHint}</span> : null}
+                    <span className="flex min-w-0 items-baseline gap-1.5">
+                      <span className="whitespace-nowrap font-mono text-[12px] leading-[1.3] font-semibold text-accent-text">/{command.name}</span>
+                      {command.argumentHint ? <span className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap">{command.argumentHint}</span> : null}
                     </span>
-                    <span className="slash-menu-item-desc">{command.description}</span>
-                    <span className="slash-menu-item-source">{sourceLabel(command.source)}</span>
+                    <span className="min-w-0 overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">{command.description}</span>
+                    <span className="flex-none rounded-full border border-line bg-muted px-1.5 py-0.5 text-[9px] font-semibold text-dim whitespace-nowrap">{sourceLabel(command.source)}</span>
                   </button>
                 ))}
               </div>
-              <div className="slash-menu-footer"><span>↑↓ 选择</span><span>Tab/Enter 补全</span><span>Esc 关闭</span></div>
+              <div className="flex-none flex gap-3 border-t border-t-line px-3 py-1.5 text-[9px] text-dim"><span><ArrowUp size={10} className="inline-block align-[-1px]" /><ArrowDown size={10} className="inline-block align-[-1px]" /> 选择</span><span>Tab/Enter 补全</span><span>Esc 关闭</span></div>
             </div>
           ) : null}
           {mentionOpen ? (
-            <div className="slash-menu mention-menu" role="listbox" aria-label="引用工作区文件">
-              <div className="slash-menu-header">引用文件 · 发送时会附上内容</div>
-              <div className="slash-menu-items">
+            <div className="mention-menu flex max-h-[min(420px,52vh)] flex-col overflow-hidden border-b border-b-line bg-elevated" role="listbox" aria-label="引用工作区文件">
+              <div className="flex-none px-3 pt-2 pb-1 text-[9px] font-bold tracking-[0.06em] text-dim uppercase">引用文件 · 发送时会附上内容</div>
+              <div className="min-h-0 flex-auto overflow-x-hidden overflow-y-auto px-1.5 pt-0.5 pb-1.5 [overscroll-behavior:contain] [scroll-padding-block:4px]">
                 {mentionFiles.map((file, index) => (
                   <button
                     key={file.path}
-                    className={`slash-menu-item${index === mentionIndex ? ' active' : ''}`}
+                    className={`grid w-full min-h-9 grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_auto] items-center gap-2.5 rounded-lg border border-transparent bg-transparent px-[9px] py-[7px] text-left text-secondary cursor-pointer hover:border-[color-mix(in_srgb,var(--accent)_26%,var(--border))] hover:bg-accent-subtle hover:text-primary${index === mentionIndex ? ' border-[color-mix(in_srgb,var(--accent)_26%,var(--border))]! bg-accent-subtle! text-primary!' : ''}`}
                     type="button"
                     role="option"
                     aria-selected={index === mentionIndex}
                     onMouseEnter={() => setMentionIndex(index)}
                     onClick={() => chooseMention(file.name)}
                   >
-                    <span className="slash-menu-item-main">
-                      <span className="slash-menu-item-name">{file.name}</span>
+                    <span className="flex min-w-0 items-baseline gap-1.5">
+                      <span className="whitespace-nowrap font-mono text-[12px] leading-[1.3] font-semibold text-accent-text">{file.name}</span>
                     </span>
                   </button>
                 ))}
               </div>
-              <div className="slash-menu-footer"><span>↑↓ 选择</span><span>Tab/Enter 引用</span><span>Esc 关闭</span></div>
+              <div className="flex-none flex gap-3 border-t border-t-line px-3 py-1.5 text-[9px] text-dim"><span><ArrowUp size={10} className="inline-block align-[-1px]" /><ArrowDown size={10} className="inline-block align-[-1px]" /> 选择</span><span>Tab/Enter 引用</span><span>Esc 关闭</span></div>
             </div>
           ) : null}
-          <div className="input-bubble">
+          <div className="block">
             <textarea
               id="message-input"
               ref={textareaRef}
               value={text}
               placeholder={snapshot.selectedSessionFile ? '在当前会话中向 Pi 发送消息… 输入 / 查看命令' : '向 Pi 发送消息… 输入 / 查看命令'}
               rows={2}
+              className="block w-full min-h-[52px] max-h-[132px] resize-none overflow-y-auto rounded-none border-0 bg-transparent px-[15px] pt-[14px] pb-[5px] text-[14px] leading-[1.5] text-primary shadow-none outline-0 placeholder:text-dim focus:border-0 focus:bg-transparent focus:shadow-none disabled:opacity-[0.42] disabled:cursor-not-allowed"
               onChange={(event) => {
                 setText(event.target.value);
                 setMention(matchMention(event.target.value, event.target.selectionStart ?? event.target.value.length));
@@ -872,7 +927,7 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
                   void submit();
                   return;
                 }
-                // ↑ from the first line walks back through what was sent, the
+                // ArrowUp from the first line walks back through what was sent, the
                 // way a shell does. Anywhere else it stays a cursor move.
                 if (event.key === 'ArrowUp' && !event.shiftKey && history.length) {
                   const textarea = event.currentTarget;
@@ -899,43 +954,53 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
               onPaste={handlePaste}
             />
           </div>
-          <div className="composer-toolbar">
-            <div className="input-left-actions">
-              <div className="composer-mode-switch" role="group" aria-label="Agent 工作模式">
+          <div className="grid min-h-[42px] grid-cols-[minmax(0,1fr)_auto] items-center gap-[7px] px-[7px] pt-1 pb-[7px]">
+            <div className="flex flex-nowrap items-center gap-0.5">
+              <div className="inline-grid grid-cols-[repeat(2,auto)] gap-0.5 rounded-[7px] border border-line bg-glass p-0.5" role="group" aria-label="Agent 工作模式">
                 <button
-                  className={planReadOnly ? 'active' : ''}
+                  className={`min-h-[25px] rounded-[5px] border-0 bg-transparent px-2 text-[12px] font-semibold cursor-pointer transition-[background-color,color,box-shadow] duration-[var(--duration-fast)] enabled:hover:bg-glass-hover enabled:hover:text-primary max-compact:min-h-[27px] max-compact:px-[7px] ${planReadOnly ? 'bg-[color-mix(in_srgb,var(--warning)_16%,var(--bg-elevated))]! text-[color-mix(in_srgb,var(--warning)_86%,var(--text-primary))]! shadow-[var(--shadow-inset)]' : 'text-dim'}`}
                   type="button"
                   aria-pressed={planReadOnly}
                   disabled={snapshot.isStreaming || snapshot.sessionSwitching}
                   onClick={() => void controller.enterPlan()}
                 >计划</button>
                 <button
-                  className={!planReadOnly ? 'active' : ''}
+                  className={`min-h-[25px] rounded-[5px] border-0 bg-transparent px-2 text-[12px] font-semibold cursor-pointer transition-[background-color,color,box-shadow] duration-[var(--duration-fast)] enabled:hover:bg-glass-hover enabled:hover:text-primary max-compact:min-h-[27px] max-compact:px-[7px] ${!planReadOnly ? 'bg-accent-subtle! text-accent-text! shadow-[var(--shadow-inset)]' : 'text-dim'}`}
                   type="button"
                   aria-pressed={!planReadOnly}
                   disabled={snapshot.isStreaming || snapshot.sessionSwitching}
                   onClick={() => void controller.enterBuild()}
                 >构建</button>
               </div>
-              <button className="input-icon-btn" type="button" title="命令（⌘K）" aria-label="打开命令" onClick={onOpenCommands}><span><Icon name="plus" /></span><span>命令</span></button>
-              <button className="input-icon-btn" type="button" title="添加图片" aria-label="添加图片" onClick={() => imageInputRef.current?.click()}><Icon name="image" /><span>图片</span></button>
+              <button className="static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-md border border-transparent bg-transparent px-2 text-[10px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden" type="button" title="命令（Ctrl+K）" aria-label="打开命令" onClick={onOpenCommands}><span><Plus size={16} /></span><span>命令</span></button>
+              <button className="static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-md border border-transparent bg-transparent px-2 text-[10px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden" type="button" title="添加图片" aria-label="添加图片" onClick={() => imageInputRef.current?.click()}><ImageIcon size={16} /><span>图片</span></button>
               <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={(event: ChangeEvent<HTMLInputElement>) => { if (event.target.files) void addFiles(event.target.files); event.target.value = ''; }} />
-              {recognitionRef.current || window.SpeechRecognition || window.webkitSpeechRecognition ? <button className={`input-icon-btn input-mic-btn${recording ? ' recording' : ''}`} type="button" title={recording ? '停止录音' : '语音输入'} onClick={toggleRecording}><Icon name="mic" /><span>语音</span></button> : null}
+              {recognitionRef.current || window.SpeechRecognition || window.webkitSpeechRecognition ? <button className={`static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-md border border-transparent bg-transparent px-2 text-[10px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden${recording ? ' text-error! animate-[workbenchPulse_1.4s_ease-in-out_infinite]' : ''}`} type="button" title={recording ? '停止录音' : '语音输入'} onClick={toggleRecording}><Mic size={16} /><span>语音</span></button> : null}
+              <Select
+                variant="ghost"
+                align="end"
+                ariaLabel="思考强度"
+                value={snapshot.thinkingLevel}
+                className="ml-auto"
+                leading={<Brain size={14} />}
+                options={THINKING_LEVELS.map((level) => ({ value: level, label: thinkingLevelLabel(level) }))}
+                onChange={(level) => void controller.setThinkingLevel(level)}
+              />
             </div>
-            <div className="composer-context">
-              <button className="workspace-chip" type="button" title={snapshot.selectedSessionFile || '当前会话：新会话'}>
-                <Icon name="file" className="workspace-chip-icon" width={13} height={13} />
-                <span className="workspace-name">{snapshot.selectedSessionTitle || '新会话'}</span>
-                <span className="workspace-path">{snapshot.selectedSessionFile || ''}</span>
+            <div className="hidden">
+              <button className="workspace-chip inline-flex h-7 min-w-0 flex-none items-center gap-[5px] rounded-[7px] border border-transparent bg-transparent px-2 text-dim cursor-pointer hover:border-line hover:bg-glass-hover hover:text-secondary" type="button" title={snapshot.selectedSessionFile || '当前会话：新会话'}>
+                <FileIcon size={13} className="flex-none opacity-70" />
+                <span className="overflow-hidden max-w-[180px] text-secondary text-ellipsis whitespace-nowrap max-compact:max-w-[26vw]">{snapshot.selectedSessionTitle || '新会话'}</span>
+                <span className="hidden">{snapshot.selectedSessionFile || ''}</span>
               </button>
             </div>
-            <div className="input-actions">
-              {!snapshot.isStreaming ? <button id="send-btn" type="submit" title="发送消息" aria-label="发送消息"><Icon name="send" /></button> : <button id="abort-btn" type="button" title="停止生成（Esc）" aria-label="停止生成" onClick={() => controller.abort()}><Icon name="stop" width={13} height={13} /></button>}
+            <div className="flex items-center gap-1">
+              {!snapshot.isStreaming ? <button id="send-btn" className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border-0 bg-accent-strong text-white shadow-[0_7px_16px_var(--accent-glow)] cursor-pointer transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-accent-hover hover:-translate-y-px disabled:opacity-[0.42] disabled:cursor-not-allowed" type="submit" title="发送消息" aria-label="发送消息"><ArrowUp size={16} /></button> : <button id="abort-btn" className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-[9px] border-0 bg-error text-white shadow-[0_7px_16px_var(--accent-glow)] cursor-pointer transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-accent-hover hover:-translate-y-px disabled:opacity-[0.42] disabled:cursor-not-allowed" type="button" title="停止生成（Esc）" aria-label="停止生成" onClick={() => controller.abort()}><Square size={13} className="fill-current" /></button>}
             </div>
           </div>
         </form>
       </div>
-      <div className="composer-hint">Enter 发送 · Shift+Enter 换行 · / 斜杠命令 · 内容可能存在错误，请检查重要信息</div>
+      <div className="mt-2 text-center text-[9px] text-ghost max-compact:hidden">Enter 发送 · Shift+Enter 换行 · / 斜杠命令 · 内容可能存在错误，请检查重要信息</div>
     </div>
   );
 }
@@ -949,7 +1014,7 @@ interface CommandPaletteProps {
 }
 
 interface CommandItem {
-  icon: string;
+  icon: LucideIcon;
   label: string;
   description: string;
   shortcut?: string;
@@ -964,18 +1029,18 @@ export function CommandPalette({ open, onClose, onToggleSidebar, onToggleFiles, 
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
   const commands = useMemo<CommandItem[]>(() => [
-    { icon: '+', label: '新建会话', description: '在当前工作区创建一个新会话', shortcut: '⌘N', keywords: 'new session', action: () => controller.newSession() },
-    { icon: 'C', label: '压缩上下文', description: '压缩当前会话以节省上下文空间', keywords: 'compact context', action: () => controller.compact() },
-    { icon: 'H', label: '导出 HTML', description: '将当前会话导出为 HTML 文件', keywords: 'export html', action: () => controller.exportHtml() },
-    { icon: 'S', label: '会话统计', description: '显示消息、工具调用和 Token 统计', keywords: 'stats token', action: () => controller.showSessionStats() },
-    { icon: 'E', label: '展开全部工具', description: '展开消息中的所有工具执行卡片', keywords: 'expand tools', action: () => window.dispatchEvent(new CustomEvent('pi-studio:tool-expand', { detail: { expanded: true } })) },
-    { icon: 'C', label: '折叠全部工具', description: '折叠消息中的所有工具执行卡片', keywords: 'collapse tools', action: () => window.dispatchEvent(new CustomEvent('pi-studio:tool-expand', { detail: { expanded: false } })) },
-    { icon: 'B', label: '切换会话栏', description: '显示或隐藏左侧会话栏', shortcut: '⌘B', keywords: 'sidebar', action: onToggleSidebar },
-    { icon: 'F', label: '切换文件栏', description: '显示或隐藏当前工作区文件', shortcut: '⌘⇧F', keywords: 'files', action: onToggleFiles },
-    { icon: 'P', label: '打开项目', description: '查看并切换工作区项目', keywords: 'projects workspace', action: () => controller.setView('projects') },
-    { icon: 'G', label: '打开变更', description: '在主区域查看 Git 变更与差异', keywords: 'git changes diff 变更', action: () => controller.setView('changes') },
-    { icon: 'S', label: '打开设置', description: '管理外观、运行时和桌面行为', keywords: 'settings preferences', action: () => controller.setView('settings') },
-    { icon: 'K', label: '键盘快捷键', description: '查看全部快捷键与全局热键', shortcut: '⌘/', keywords: 'shortcuts hotkeys keyboard 快捷键', action: onShowShortcuts },
+    { icon: Plus, label: '新建会话', description: '在当前工作区创建一个新会话', shortcut: 'Ctrl+N', keywords: 'new session', action: () => controller.newSession() },
+    { icon: Shrink, label: '压缩上下文', description: '压缩当前会话以节省上下文空间', keywords: 'compact context', action: () => controller.compact() },
+    { icon: ExternalLink, label: '导出 HTML', description: '将当前会话导出为 HTML 文件', keywords: 'export html', action: () => controller.exportHtml() },
+    { icon: ChartNoAxesColumn, label: '会话统计', description: '显示消息、工具调用和 Token 统计', keywords: 'stats token', action: () => controller.showSessionStats() },
+    { icon: UnfoldVertical, label: '展开全部工具', description: '展开消息中的所有工具执行卡片', keywords: 'expand tools', action: () => window.dispatchEvent(new CustomEvent('pi-studio:tool-expand', { detail: { expanded: true } })) },
+    { icon: FoldVertical, label: '折叠全部工具', description: '折叠消息中的所有工具执行卡片', keywords: 'collapse tools', action: () => window.dispatchEvent(new CustomEvent('pi-studio:tool-expand', { detail: { expanded: false } })) },
+    { icon: PanelLeft, label: '切换会话栏', description: '显示或隐藏左侧会话栏', shortcut: 'Ctrl+B', keywords: 'sidebar', action: onToggleSidebar },
+    { icon: FolderTree, label: '切换文件栏', description: '显示或隐藏当前工作区文件', shortcut: 'Ctrl+Shift+F', keywords: 'files', action: onToggleFiles },
+    { icon: LayoutGrid, label: '打开项目', description: '查看并切换工作区项目', keywords: 'projects workspace', action: () => controller.setView('projects') },
+    { icon: FileText, label: '打开变更', description: '在主区域查看 Git 变更与差异', keywords: 'git changes diff 变更', action: () => controller.setView('changes') },
+    { icon: Settings, label: '打开设置', description: '管理外观、运行时和桌面行为', keywords: 'settings preferences', action: () => controller.setView('settings') },
+    { icon: Keyboard, label: '键盘快捷键', description: '查看全部快捷键与全局热键', shortcut: 'Ctrl+/', keywords: 'shortcuts hotkeys keyboard 快捷键', action: onShowShortcuts },
   ], [onShowShortcuts, onToggleFiles, onToggleSidebar]);
   const visible = commands.filter((command) => !query.trim() || `${command.label} ${command.description} ${command.keywords}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -1019,19 +1084,19 @@ export function CommandPalette({ open, onClose, onToggleSidebar, onToggleFiles, 
   };
   return (
     <>
-      <div className="command-palette-overlay" onClick={onClose} />
-      <div className="command-palette" role="dialog" aria-modal="true" aria-label="命令面板" ref={dialogRef}>
-        <label className="command-palette-search"><Icon name="search" width={17} height={17} /><input ref={inputRef} type="search" placeholder="搜索命令…" value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={(event) => {
+      <div className="fixed inset-0 z-[500] bg-[rgba(3,5,9,0.6)] [backdrop-filter:blur(4px)]" onClick={onClose} />
+      <div className="fixed left-1/2 top-[14vh] z-[510] w-[min(600px,calc(100vw_-_32px))] max-h-[min(620px,72vh)] -translate-x-1/2 overflow-hidden rounded-[15px] border border-line-hover bg-elevated shadow-lg animate-[paletteEnter_var(--duration)_var(--ease)] max-compact:top-[8vh]" role="dialog" aria-modal="true" aria-label="命令面板" ref={dialogRef}>
+        <label className="flex h-[54px] items-center gap-2.5 border-b border-b-line px-[15px] text-dim"><Search size={17} /><input ref={inputRef} type="search" placeholder="搜索命令…" className="h-full flex-1 border-0 bg-transparent text-[14px] text-primary outline-none" value={query} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0); }} onKeyDown={(event) => {
           if (event.key === 'ArrowDown') { event.preventDefault(); setActiveIndex((value) => Math.min(visible.length - 1, value + 1)); }
           if (event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex((value) => Math.max(0, value - 1)); }
           if (event.key === 'Enter') { event.preventDefault(); run(); }
           if (event.key === 'Escape') { event.preventDefault(); onClose(); }
         }} /><kbd>Esc</kbd></label>
-        <div className="command-palette-header">可用命令</div>
-        <div className="command-list">
-          {visible.length ? visible.map((command, index) => <button className={`command-item${index === activeIndex ? ' active' : ''}`} type="button" key={command.label} onMouseEnter={() => setActiveIndex(index)} onClick={() => run(index)}><span className="command-icon">{command.icon}</span><span><span className="command-label">{command.label}</span><span className="command-desc">{command.description}</span></span>{command.shortcut ? <kbd className="command-shortcut">{command.shortcut}</kbd> : <span />}</button>) : <div className="command-empty">没有匹配的命令</div>}
+        <div className="px-3.5 pt-2.5 pb-[5px] text-[9px] font-bold tracking-[0.08em] text-dim uppercase">可用命令</div>
+        <div className="max-h-[calc(min(620px,72vh)_-_110px)] overflow-auto px-[7px] pt-1 pb-2">
+          {visible.length ? visible.map((command, index) => { const IconComponent = command.icon; return <button className={`grid w-full min-h-[50px] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-[9px] rounded-[9px] border-0 bg-transparent px-[9px] py-[7px] text-left text-inherit cursor-pointer${index === activeIndex ? ' bg-accent-subtle!' : ''} hover:bg-accent-subtle`} type="button" key={command.label} onMouseEnter={() => setActiveIndex(index)} onClick={() => run(index)}><span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-muted text-[14px]"><IconComponent size={14} /></span><span><span className="text-[12px] font-semibold text-primary">{command.label}</span><span className="block text-[10px] text-dim">{command.description}</span></span>{command.shortcut ? <kbd className="text-dim">{command.shortcut}</kbd> : <span />}</button>; }) : <div className="px-5 py-9 text-center text-dim">没有匹配的命令</div>}
         </div>
-        <div className="command-palette-footer"><span>↑↓ 选择</span><span>Enter 执行</span><span>⌘/ 查看全部快捷键</span></div>
+        <div className="flex gap-[15px] border-t border-t-line px-3.5 py-2 text-[9px] text-dim"><span><ArrowUp size={10} className="inline-block align-[-1px]" /><ArrowDown size={10} className="inline-block align-[-1px]" /> 选择</span><span>Enter 执行</span><span>Ctrl+/ 查看全部快捷键</span></div>
       </div>
     </>
   );
@@ -1049,10 +1114,10 @@ export function ToastRegion() {
     window.addEventListener('pi-studio:toast', listener);
     return () => window.removeEventListener('pi-studio:toast', listener);
   }, []);
-  const icons: Record<string, string> = { success: '✓', error: '!', warning: '△', info: 'i' };
+  const icons: Record<string, LucideIcon> = { success: CircleCheck, error: CircleAlert, warning: TriangleAlert, info: Info };
   return (
-    <div className="toast-region" aria-live="polite" aria-atomic="true">
-      {toasts.map((toast) => <div className={`toast ${toast.type || 'info'}`} key={toast.id}><span className="toast-icon">{icons[toast.type || 'info']}</span><span><span className="toast-title">{toast.title}</span>{toast.message ? <span className="toast-message">{toast.message}</span> : null}</span><button className="toast-close" type="button" aria-label="关闭通知" onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}>×</button></div>)}
+    <div className="pointer-events-none fixed bottom-[18px] right-[18px] z-[1000] flex w-[min(360px,calc(100vw_-_36px))] flex-col gap-2" aria-live="polite" aria-atomic="true">
+      {toasts.map((toast) => { const ToastIcon = icons[toast.type || 'info']; return <div className={`pointer-events-auto grid grid-cols-[20px_1fr_auto] items-start gap-[9px] rounded-[11px] border border-line-hover bg-elevated px-3 py-[11px] text-secondary shadow-lg animate-[toastEnter_var(--duration)_var(--ease)] ${toast.type || 'info'}`} key={toast.id}><span className={`${toast.type === 'success' ? 'text-success' : toast.type === 'error' ? 'text-error' : toast.type === 'warning' ? 'text-warning' : 'text-dim'}`}><ToastIcon size={13} /></span><span><span className="text-[11px] font-semibold text-primary">{toast.title}</span>{toast.message ? <span className="mt-0.5 block text-[10px] text-dim">{toast.message}</span> : null}</span><button className="inline-flex h-[22px] w-[22px] flex-none items-center justify-center rounded-md border-0 bg-transparent p-0 text-dim cursor-pointer hover:bg-glass-hover hover:text-primary" type="button" aria-label="关闭通知" onClick={() => setToasts((current) => current.filter((item) => item.id !== toast.id))}><X size={12} /></button></div>; })}
     </div>
   );
 }
@@ -1079,21 +1144,21 @@ export function ExtensionDialog({ request }: { request: ExtensionUiRequest | nul
   const cancel = () => controller.respondToExtension(request, { cancelled: true });
   const title = request.title || ({ select: '请选择', confirm: '确认操作', input: '输入内容', editor: '编辑内容', notify: '扩展通知' } as Record<string, string>)[request.method] || '扩展请求';
   return (
-    <div id="dialog-container" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) cancel(); }}>
-      <div className={`dialog${request.method === 'editor' ? ' dialog-editor' : ''}`} role="dialog" aria-modal="true" aria-label={title} onKeyDown={(event: ReactKeyboardEvent) => {
+    <div id="dialog-container" className="fixed inset-0 z-[800] grid place-items-center bg-[rgba(3,5,9,0.58)] p-5 [backdrop-filter:blur(4px)]" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) cancel(); }}>
+      <div className={`w-[min(480px,100%)] max-h-[min(680px,86vh)] overflow-auto rounded-[15px] border border-line-hover bg-elevated p-5 shadow-lg animate-[paletteEnter_var(--duration)_var(--ease)]${request.method === 'editor' ? '' : ''}`} role="dialog" aria-modal="true" aria-label={title} onKeyDown={(event: ReactKeyboardEvent) => {
         if (event.key === 'Escape') { event.preventDefault(); cancel(); }
         if (event.key === 'Enter' && request.method === 'input') { event.preventDefault(); controller.respondToExtension(request, value.trim() ? { value: value.trim() } : { cancelled: true }); }
       }}>
-        <div className="dialog-title">{title}</div>
-        {request.message ? <div className="dialog-message">{request.message}</div> : null}
-        {request.method === 'select' ? <div className="dialog-options">{(request.options || []).map((option) => <button className="dialog-option" type="button" key={optionLabel(option)} onClick={() => controller.respondToExtension(request, { value: optionValue(option) })}>{optionLabel(option)}</button>)}</div> : null}
-        {request.method === 'input' ? <input ref={fieldRef as React.RefObject<HTMLInputElement>} className="dialog-input" type="text" placeholder={String(request.placeholder || '')} value={value} onChange={(event) => setValue(event.target.value)} /> : null}
-        {request.method === 'editor' ? <textarea ref={fieldRef as React.RefObject<HTMLTextAreaElement>} className="dialog-textarea" value={value} onChange={(event) => setValue(event.target.value)} /> : null}
-        <div className="dialog-actions">
-          {request.method !== 'notify' ? <button type="button" onClick={() => request.method === 'confirm' ? controller.respondToExtension(request, { confirmed: false }) : cancel()}>取消</button> : null}
-          {request.method === 'confirm' ? <button className={request.destructive ? 'danger' : 'primary'} type="button" onClick={() => controller.respondToExtension(request, { confirmed: true })}>确认</button> : null}
-          {request.method === 'input' || request.method === 'editor' ? <button className="primary" type="button" onClick={() => controller.respondToExtension(request, value ? { value } : { cancelled: true })}>{request.method === 'editor' ? '保存' : '提交'}</button> : null}
-          {request.method === 'notify' ? <button className="primary" type="button" onClick={() => controller.respondToExtension(request, { acknowledged: true })}>知道了</button> : null}
+        <div className="text-[16px] font-semibold text-primary whitespace-pre-wrap">{title}</div>
+        {request.message ? <div className="mt-2 text-secondary">{request.message}</div> : null}
+        {request.method === 'select' ? <div className="mt-3.5 grid gap-1.5">{(request.options || []).map((option) => <button className="w-full rounded-[9px] border border-line bg-panel px-[11px] py-2.5 text-left text-secondary cursor-pointer hover:border-line-hover hover:bg-muted hover:text-primary" type="button" key={optionLabel(option)} onClick={() => controller.respondToExtension(request, { value: optionValue(option) })}>{optionLabel(option)}</button>)}</div> : null}
+        {request.method === 'input' ? <input ref={fieldRef as React.RefObject<HTMLInputElement>} className="mt-3.5 w-full rounded-[9px] border border-line bg-panel px-2.5 py-[9px] text-primary outline-0 focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-subtle)]" type="text" placeholder={String(request.placeholder || '')} value={value} onChange={(event) => setValue(event.target.value)} /> : null}
+        {request.method === 'editor' ? <textarea ref={fieldRef as React.RefObject<HTMLTextAreaElement>} className="mt-3.5 min-h-[140px] w-full resize-y rounded-[9px] border border-line bg-panel px-2.5 py-[9px] font-mono text-[11px] leading-[1.55] text-primary outline-0 focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-subtle)]" value={value} onChange={(event) => setValue(event.target.value)} /> : null}
+        <div className="mt-4 flex justify-end gap-2">
+          {request.method !== 'notify' ? <button className="min-h-[34px] min-w-[76px] rounded-lg border border-line bg-panel px-[13px] text-secondary cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-muted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" type="button" onClick={() => request.method === 'confirm' ? controller.respondToExtension(request, { confirmed: false }) : cancel()}>取消</button> : null}
+          {request.method === 'confirm' ? <button className={`min-h-[34px] min-w-[76px] rounded-lg px-[13px] text-white cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-muted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45 ${request.destructive ? 'border-error bg-error' : 'border-accent bg-accent'}`} type="button" onClick={() => controller.respondToExtension(request, { confirmed: true })}>确认</button> : null}
+          {request.method === 'input' || request.method === 'editor' ? <button className="min-h-[34px] min-w-[76px] rounded-lg border border-accent bg-accent px-[13px] text-white cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-muted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" type="button" onClick={() => controller.respondToExtension(request, value ? { value } : { cancelled: true })}>{request.method === 'editor' ? '保存' : '提交'}</button> : null}
+          {request.method === 'notify' ? <button className="min-h-[34px] min-w-[76px] rounded-lg border border-accent bg-accent px-[13px] text-white cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-muted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" type="button" onClick={() => controller.respondToExtension(request, { acknowledged: true })}>知道了</button> : null}
         </div>
       </div>
     </div>

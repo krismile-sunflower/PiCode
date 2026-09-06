@@ -1,0 +1,14 @@
+/* Global state hooks and element-internals that markup utilities cannot express:
+   body-level drag state, resizer affordance, <progress> bar internals. */
+body.is-resizing { @apply cursor-col-resize select-none; }
+.panel-resizer::after {
+  content: "";
+  @apply absolute inset-y-0 left-px w-px bg-transparent;
+  transition: background var(--duration-fast) ease;
+}
+.panel-resizer:hover::after,
+body.is-resizing .panel-resizer::after { background: var(--accent); }
+
+.task-progress::-webkit-progress-bar { background: var(--bg-muted); }
+.task-progress::-webkit-progress-value { background: var(--accent-strong); border-radius: inherit; }
+.task-progress::-moz-progress-bar { background: var(--accent-strong); border-radius: inherit; }

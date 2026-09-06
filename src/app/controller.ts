@@ -41,6 +41,7 @@ import type {
   SessionProject,
   SessionSearchResult,
   SlashCommand,
+  ThinkingLevel,
   TimelineItem,
   ToolExecution,
   TransportEnvelope,
@@ -71,7 +72,6 @@ import {
   buildHistoryTimeline,
   instanceTransport,
   mergeSessionProjects,
-  modelSupportsThinking,
   resolveModel,
 } from './session-model';
 import {
@@ -442,6 +442,25 @@ export class PiStudioController {
     } catch (error) {
       notify('切换实例失败', String(error), 'error');
     }
+  }
+
+  /**
+   * Stop a background Pi instance this window spawned.
+   *
+   * The Rust command rejects instances belonging to other windows and the
+   * instance this window is attached to, so a failed stop here is surfaced
+   * instead of silently killing the wrong process.
+   */
+  async stopInstance(pid: number): Promise<void> {
+    if (!isDesktop) return;
+    try {
+      await invoke('stop_instance', { pid });
+      notify('实例已停止', `Pi 进程 ${pid} 已关闭`, 'success');
+    } catch (error) {
+      notify('停止实例失败', String(error), 'error');
+      return;
+    }
+    await this.pollInstances();
   }
 
   async newIsolatedSession(label: string): Promise<boolean> {
@@ -925,7 +944,6 @@ export class PiStudioController {
     appStore.update({
       currentModelId: model.id,
       currentModelProvider: model.provider || '',
-      thinkingSupported: modelSupportsThinking(selected),
       thinkingLevel: result.data?.thinkingLevel || appStore.getSnapshot().thinkingLevel,
       contextWindowSize: model.contextWindow || model.context_window || 0,
     });
@@ -970,7 +988,6 @@ export class PiStudioController {
   }
 
   async cycleThinking(): Promise<void> {
-    if (!appStore.getSnapshot().thinkingSupported) return;
     const result = await this.rpcCommand<{ level?: string; thinkingLevel?: string }>(
       { type: 'cycle_thinking_level' },
     );
@@ -980,8 +997,24 @@ export class PiStudioController {
       typeof data === 'string'
         ? data
         : data?.level || data?.thinkingLevel;
-    if (level) appStore.update({ thinkingLevel: level, thinkingSupported: true });
-    else appStore.update({ thinkingSupported: false });
+    if (level) {
+      appStore.update({ thinkingLevel: level });
+      return;
+    }
+    // Pi refuses to cycle when its model registry has reasoning disabled for
+    // this model (models.json entry without `reasoning: true`). Point the user
+    // at the fix instead of silently ignoring the toggle they just clicked.
+    notify(
+      '无法切换思考强度',
+      '当前模型在 Pi 中未启用推理。请到「设置 - 模型」，在该模型的推理预设中选择一个预设（如 OpenAI 标准）并保存，然后重试。',
+      'warning',
+    );
+  }
+
+  async setThinkingLevel(level: ThinkingLevel): Promise<void> {
+    const result = await this.rpcCommand({ type: 'set_thinking_level', level });
+    if (!result.success) return;
+    appStore.update({ thinkingLevel: level });
   }
 
   async loadSettings(): Promise<void> {
@@ -991,11 +1024,9 @@ export class PiStudioController {
     if (runtimeAvailable) {
       const modelState = await this.rpcCommand<StateResponse>({ type: 'get_state' }, '', true);
       if (modelState.success && modelState.data) {
-        const model = resolveModel(modelState.data.model, appStore.getSnapshot().models);
         appStore.update({
           autoCompactionEnabled: Boolean(modelState.data.autoCompactionEnabled),
           thinkingLevel: modelState.data.thinkingLevel || 'off',
-          thinkingSupported: modelSupportsThinking(model),
         });
       }
     }
@@ -1132,7 +1163,17 @@ export class PiStudioController {
               nextKey == null || String(nextKey).trim() === ''
                 ? prevKey
                 : nextKey;
-            return [name, { ...provider, ...(apiKey != null && apiKey !== '' ? { apiKey } : {}) }];
+            return [name, {
+              ...provider,
+              ...(apiKey != null && apiKey !== '' ? { apiKey } : {}),
+              // Normalize: every model is reasoning-capable as far as Pi's
+              // cycle gate is concerned — "off" is a thinking level, not a
+              // capability flag.
+              models: (provider.models || []).map((model) => ({
+                ...model,
+                reasoning: true,
+              })),
+            }];
           }),
         ),
       };
@@ -2013,9 +2054,9 @@ export class PiStudioController {
             '快捷键',
             'Enter — 发送',
             'Shift+Enter — 换行',
-            '⌘/Ctrl+K — 命令面板',
-            '⌘/Ctrl+N — 新建会话',
-            '⌘/Ctrl+B — 切换会话栏',
+            'Ctrl+K — 命令面板',
+            'Ctrl+N — 新建会话',
+            'Ctrl+B — 切换会话栏',
             'Esc — 停止生成 / 关闭面板',
             '/ — 斜杠命令自动补全',
           ].join('\n'),
@@ -2325,7 +2366,6 @@ export class PiStudioController {
       appStore.update({
         currentModelId: modelId,
         currentModelProvider: provider,
-        thinkingSupported: modelSupportsThinking(available || model),
         contextWindowSize: available?.contextWindow || available?.context_window || model.contextWindow || model.context_window || state.contextWindowSize,
       });
     }
@@ -2611,7 +2651,6 @@ export class PiStudioController {
       currentModelId: currentId || modelIdFromValue(state.data?.model),
       currentModelProvider: currentProvider,
       thinkingLevel: state.data?.thinkingLevel || previous.thinkingLevel,
-      thinkingSupported: modelSupportsThinking(availableCurrent || current),
       contextWindowSize:
         availableCurrent?.contextWindow || availableCurrent?.context_window || current?.contextWindow || current?.context_window || previous.contextWindowSize,
     });

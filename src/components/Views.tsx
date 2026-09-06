@@ -20,10 +20,29 @@ import { applyTheme, getCurrentTheme, themes } from '../lib/theme';
 import { invoke } from '@tauri-apps/api/core';
 import { controller } from '../app/controller';
 import { notify } from '../app/controller-contracts';
-import { Icon } from './Icon';
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Folder,
+  LayoutGrid,
+  Plus,
+  RotateCw,
+  Search,
+  X,
+} from 'lucide-react';
 import { confirmDialog } from './ConfirmDialog';
 import { DiffView } from './DiffView';
 import { DEFAULT_REASONING_PROFILE, migrateReasoningConfig, PI_REASONING_LEVELS, REASONING_UI_LABELS } from '../lib/reasoning';
+import { Select } from './Select';
+import { THINKING_LEVELS, thinkingLevelLabel } from '../lib/thinking';
 
 const API_OPTIONS = [
   'openai-completions',
@@ -31,17 +50,6 @@ const API_OPTIONS = [
   'anthropic-messages',
   'google-generative-ai',
 ] as const;
-
-const THINKING_LEVELS = [
-  ['off', '关闭'],
-  ['minimal', '极简'],
-  ['low', '低'],
-  ['medium', '中'],
-  ['high', '高'],
-  ['xhigh', '最高'],
-] as const;
-
-const THINKING_LABELS: Record<string, string> = { off: '关闭', minimal: '极简', low: '较低', medium: '中等', high: '较高', xhigh: '最高', max: '最高' };
 
 function emptyProvider(): ModelsProviderConfig {
   return {
@@ -85,8 +93,27 @@ function knownModelSetting(value?: string): string {
   return normalized && !['unknown', 'undefined', 'null'].includes(normalized.toLowerCase()) ? normalized : '';
 }
 
+const normalizeProjectPath = (value: string): string => value.replace(/[\\/]+$/, '').toLowerCase();
+
+/** 当前窗口（accent）与仅运行中（success）共用一枚状态徽章，词汇与侧栏一致。 */
+function LiveBadge({ state }: { state: 'current' | 'running' }) {
+  return (
+    <span className={`inline-flex flex-none items-center gap-1 text-[9px] [font-weight:650] before:inline-block before:h-[5px] before:w-[5px] before:rounded-full before:bg-current before:content-[''] ${state === 'current' ? 'text-accent-text' : 'text-success'}`}>
+      {state === 'current' ? '当前窗口' : '运行中'}
+    </span>
+  );
+}
+
 export function ProjectsView({ snapshot }: { snapshot: AppSnapshot }) {
   const [query, setQuery] = useState('');
+  const runningPaths = useMemo(
+    () => new Set(
+      snapshot.liveInstances
+        .map((instance) => normalizeProjectPath(instance.projectPath || instance.project_path || ''))
+        .filter(Boolean),
+    ),
+    [snapshot.liveInstances],
+  );
   const projects = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return [...snapshot.projects]
@@ -103,8 +130,8 @@ export function ProjectsView({ snapshot }: { snapshot: AppSnapshot }) {
   };
 
   return (
-    <section className="launcher workspace-view" aria-label="项目">
-      <div className="launcher-content">
+    <section className="absolute inset-x-0 top-(--header-height) bottom-0 z-20 overflow-auto bg-canvas pt-[26px] pb-12 px-[clamp(16px,3vw,36px)] max-compact:pt-[30px] max-compact:pb-[50px] max-compact:px-[14px]" aria-label="项目">
+      <div className="mx-auto w-full max-w-[1120px]">
         <div className="pane-header">
           <div className="pane-header-copy">
             <span className="eyebrow">工作区</span>
@@ -112,53 +139,69 @@ export function ProjectsView({ snapshot }: { snapshot: AppSnapshot }) {
             <p className="pane-header-subtitle">项目绑定一个仓库，Pi 可以改代码；对话不绑定仓库，以只读方式开始。</p>
           </div>
           <div className="pane-header-actions">
-            <button className="launcher-action" type="button" onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}>新建对话</button>
-            <button className="launcher-action primary" type="button" onClick={() => void controller.addProject()}>添加项目</button>
-            {snapshot.hasActivePiSession ? <button className="pane-close" type="button" title="返回聊天" aria-label="返回聊天" onClick={() => controller.returnToChat()}><Icon name="close" width={16} height={16} /></button> : null}
+            <button
+              className="inline-flex h-8 flex-1 items-center rounded-lg border border-line bg-glass px-3 text-[12px] font-semibold text-secondary transition-colors duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary"
+              type="button"
+              onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}
+            >新建对话</button>
+            <button
+              className="inline-flex h-8 flex-1 items-center rounded-lg border border-accent-strong bg-accent-strong px-3 text-[12px] font-semibold text-white transition-colors duration-[var(--duration-fast)] hover:border-accent-hover hover:bg-accent-hover hover:text-white"
+              type="button"
+              onClick={() => void controller.addProject()}
+            >添加项目</button>
+            {snapshot.hasActivePiSession ? <button className="pane-close" type="button" title="返回聊天" aria-label="返回聊天" onClick={() => controller.returnToChat()}><X size={16} /></button> : null}
           </div>
         </div>
-        {snapshot.projectError ? <div className="launcher-error">{snapshot.projectError}</div> : null}
-        <label className="launcher-search">
-          <Icon name="search" width={15} height={15} />
-          <input type="search" placeholder="搜索项目名称或路径" value={query} onChange={(event) => setQuery(event.target.value)} />
+        {snapshot.projectError ? <div className="mb-3.5 rounded-[10px] border border-[color-mix(in_srgb,var(--error)_35%,var(--border))] bg-[color-mix(in_srgb,var(--error)_7%,transparent)] px-2.5 py-[9px] text-[11px] text-error">{snapshot.projectError}</div> : null}
+        <label className="mb-3.5 flex h-9 items-center gap-2 rounded-[9px] border border-line bg-panel px-[11px] text-dim focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-subtle)]">
+          <Search size={15} />
+          <input type="search" placeholder="搜索项目名称或路径" value={query} onChange={(event) => setQuery(event.target.value)} className="h-full w-full min-w-0 border-0 bg-transparent text-[12.5px] text-primary outline-none" />
         </label>
-        <div className="launcher-grid">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-2.5 max-compact:grid-cols-1">
           {!query || '对话 chat 无文件夹 no folder'.includes(query.toLowerCase()) ? (
-            <article className={`launcher-card no-folder${snapshot.noFolderActive ? ' active' : ''}`}>
-              <div className="launcher-card-icon"><Icon name="eye" width={20} height={20} /></div>
-              <div className="launcher-card-main">
-                <div className="launcher-card-name">对话 {snapshot.noFolderActive ? <span className="launcher-live">运行中</span> : null}</div>
+            <article className={`group grid cursor-pointer grid-cols-[36px_minmax(0,1fr)] items-start gap-x-[11px] gap-y-1.5 rounded-[11px] border border-transparent bg-panel p-3.5 text-primary shadow-sm transition-[border-color,background-color,box-shadow] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:shadow-md${snapshot.noFolderActive ? ' border-[color-mix(in_srgb,var(--accent)_38%,transparent)]' : ''}`}>
+              <div className="grid h-9 w-9 place-items-center rounded-[9px] bg-muted text-secondary">
+                <Eye size={20} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-[7px] overflow-hidden text-[13px] text-primary [font-weight:680] tracking-[-0.015em] text-ellipsis whitespace-nowrap">对话 {snapshot.noFolderActive ? <LiveBadge state="current" /> : null}</div>
                 {/* Projects and chats are a deliberate split: a project is bound
                     to a repository and may change it; a chat is bound to
                     nothing and starts read-only. */}
-                <div className="launcher-card-path">不绑定仓库，以只读的计划模式开始</div>
-                <div className="launcher-card-meta"><span>适合提问、调研和临时任务</span></div>
+                <div className="mt-[3px] overflow-hidden font-mono text-[10px] leading-[1.4] text-dim text-ellipsis whitespace-nowrap">不绑定仓库，以只读的计划模式开始</div>
+                <div className="mt-1.5 flex gap-2.5 text-[10px] text-ghost"><span>适合提问、调研和临时任务</span></div>
               </div>
-              <div className="launcher-card-actions">
-                <button className="launcher-card-open" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}>
+              <div className="col-span-2 mt-0.5 flex items-center justify-end gap-[5px]">
+                <button className="inline-flex h-7 items-center justify-center rounded-[7px] border border-transparent bg-accent-subtle px-[11px] text-[11px] font-semibold text-accent-text transition-colors duration-[var(--duration-fast)] group-hover:bg-accent-strong group-hover:text-white disabled:opacity-50" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}>
                   {snapshot.projectBusyPath === '__no_folder__' ? '正在启动…' : snapshot.noFolderActive ? '返回会话' : '开始对话'}
                 </button>
               </div>
             </article>
           ) : null}
-          {projects.map((project) => (
-            <article className={`launcher-card${project.active ? ' active' : ''}`} key={project.path} onClick={() => openProject(project)}>
-              <div className="launcher-card-icon"><Icon name="folder" width={20} height={20} /></div>
-              <div className="launcher-card-main">
-                <div className="launcher-card-name">{project.name || basename(project.path) || '未命名项目'} {project.active ? <span className="launcher-live">运行中</span> : null}</div>
-                <div className="launcher-card-path" title={project.path}>{project.path}</div>
-                <div className="launcher-card-meta"><span>{Number(project.sessionCount || 0)} 个会话</span><span>{formatRelativeTime(project.lastActive) || '尚未使用'}</span></div>
+          {projects.map((project) => {
+            const isCurrent = project.active;
+            const isRunning = runningPaths.has(normalizeProjectPath(project.path));
+            return (
+            <article className={`group grid cursor-pointer grid-cols-[36px_minmax(0,1fr)] items-start gap-x-[11px] gap-y-1.5 rounded-[11px] border border-transparent bg-panel p-3.5 text-primary shadow-sm transition-[border-color,background-color,box-shadow] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:shadow-md${isCurrent ? ' border-[color-mix(in_srgb,var(--accent)_38%,transparent)]' : isRunning ? ' border-[color-mix(in_srgb,var(--success)_38%,transparent)]' : ''}`} key={project.path} onClick={() => openProject(project)}>
+              <div className="grid h-9 w-9 place-items-center rounded-[9px] bg-accent-subtle text-accent-text">
+                <Folder size={20} />
               </div>
-              <div className="launcher-card-actions">
-                <button className="launcher-window-btn" type="button" title="在新窗口打开" disabled={Boolean(snapshot.projectBusyPath)} onClick={(event) => { event.stopPropagation(); void controller.openProjectWindow(project.path); }}><Icon name="external" width={13} height={13} /></button>
-                <button className="launcher-card-open" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={(event) => { event.stopPropagation(); openProject(project); }}>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-[7px] overflow-hidden text-[13px] text-primary [font-weight:680] tracking-[-0.015em] text-ellipsis whitespace-nowrap">{project.name || basename(project.path) || '未命名项目'} {isCurrent ? <LiveBadge state="current" /> : isRunning ? <LiveBadge state="running" /> : null}</div>
+                <div className="mt-[3px] overflow-hidden font-mono text-[10px] leading-[1.4] text-dim text-ellipsis whitespace-nowrap" title={project.path}>{project.path}</div>
+                <div className="mt-1.5 flex gap-2.5 text-[10px] text-ghost"><span>{Number(project.sessionCount || 0)} 个会话</span><span>{formatRelativeTime(project.lastActive) || '尚未使用'}</span></div>
+              </div>
+              <div className="col-span-2 mt-0.5 flex items-center justify-end gap-[5px]">
+                <button className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] border border-line bg-glass p-0 text-secondary transition-colors duration-[var(--duration-fast)] group-hover:border-line-hover group-hover:text-primary disabled:opacity-50" type="button" title="在新窗口打开" disabled={Boolean(snapshot.projectBusyPath)} onClick={(event) => { event.stopPropagation(); void controller.openProjectWindow(project.path); }}><ExternalLink size={13} /></button>
+                <button className="inline-flex h-7 items-center justify-center rounded-[7px] border border-transparent bg-accent-subtle px-[11px] text-[11px] font-semibold text-accent-text transition-colors duration-[var(--duration-fast)] group-hover:bg-accent-strong group-hover:text-white disabled:opacity-50" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={(event) => { event.stopPropagation(); openProject(project); }}>
                   {snapshot.projectBusyPath === project.path ? '正在启动…' : project.active ? '返回会话' : '打开'}
                 </button>
               </div>
             </article>
-          ))}
-          {!snapshot.projectsLoading && projects.length === 0 && query ? <div className="launcher-empty"><strong>没有匹配的项目</strong><p className="hint">尝试搜索其他名称或路径。</p></div> : null}
-          {snapshot.projectsLoading ? <div className="launcher-loading">正在加载项目…</div> : null}
+            );
+          })}
+          {!snapshot.projectsLoading && projects.length === 0 && query ? <div className="mx-auto mt-20 max-w-[520px] rounded-2xl border border-dashed border-line-hover bg-panel p-10"><strong className="text-primary">没有匹配的项目</strong><p className="hint mt-2 text-[11px] text-dim">尝试搜索其他名称或路径。</p></div> : null}
+          {snapshot.projectsLoading ? <div className="grid min-h-[50vh] place-items-center text-[13px] text-dim">正在加载项目…</div> : null}
         </div>
       </div>
     </section>
@@ -252,30 +295,30 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
     const active = selected === change.path && selectedArea === area;
     const actionLabel = area === 'staged' ? `取消暂存 ${change.path}` : `暂存 ${change.path}`;
     return (
-      <div className={`change-file-row${active ? ' active' : ''}`} key={`${area}:${change.path}`}>
-        <button className="change-file" type="button" onClick={() => void controller.selectGitChange(change.path, area)}>
-          <span className={`change-status ${label}`}>{label}</span>
-          <span className="change-file-copy"><strong>{change.path}</strong>{change.originalPath ? <small>{change.originalPath} → {change.path}</small> : null}</span>
+      <div className={`group flex items-center border-b border-b-[color-mix(in_srgb,var(--border)_72%,transparent)] bg-transparent hover:bg-glass-hover${active ? ' bg-glass-hover' : ''}`} key={`${area}:${change.path}`}>
+        <button className="flex min-w-0 flex-1 items-start gap-2.5 border-0 bg-transparent py-[11px] pl-[13px] pr-2 text-left text-secondary cursor-pointer group-hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent" type="button" onClick={() => void controller.selectGitChange(change.path, area)}>
+          <span className={`min-w-[30px] flex-none pt-px text-[10px] font-bold ${label === '新增' ? 'text-success' : label === '删除' ? 'text-error' : label === '重命名' ? 'text-accent' : 'text-warning'}`}>{label}</span>
+          <span className="flex min-w-0 flex-col gap-[3px]"><strong className="overflow-hidden font-mono text-[11px] leading-[1.35] text-ellipsis whitespace-nowrap">{change.path}</strong>{change.originalPath ? <small className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap">{change.originalPath}<ArrowRight size={10} className="mx-1 inline-block align-[-1px]" aria-hidden="true" />{change.path}</small> : null}</span>
         </button>
-        <button className="change-file-stage" type="button" aria-label={actionLabel} title={actionLabel} disabled={busy} onClick={() => void runGitAction(area === 'staged' ? 'unstage' : 'stage', () => area === 'staged' ? controller.unstageGit(gitChangePaths(change)) : controller.stageGit(gitChangePaths(change)))}>
-          <Icon name={area === 'staged' ? 'close' : 'plus'} width={13} height={13} />
+        <button className="mr-2 grid h-7 w-7 flex-none place-items-center rounded-md border border-transparent bg-transparent p-0 text-dim opacity-70 cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-elevated enabled:hover:text-accent-text enabled:hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-30" type="button" aria-label={actionLabel} title={actionLabel} disabled={busy} onClick={() => void runGitAction(area === 'staged' ? 'unstage' : 'stage', () => area === 'staged' ? controller.unstageGit(gitChangePaths(change)) : controller.stageGit(gitChangePaths(change)))}>
+          {area === 'staged' ? <X size={13} /> : <Plus size={13} />}
         </button>
       </div>
     );
   };
   return (
-    <section className="changes-panel workspace-view">
-      <div className="pane-header changes-header">
+    <section className="absolute inset-x-0 top-(--header-height) bottom-0 z-20 overflow-auto bg-canvas pt-[26px] pb-12 px-[clamp(16px,3vw,36px)] max-compact:pt-[30px] max-compact:pb-[50px] max-compact:px-[14px]">
+      <div className="pane-header gap-[18px]">
         <div className="pane-header-copy">
           <span className="eyebrow">工作区</span>
           <h2>变更审阅</h2>
           <p className="pane-header-subtitle">按范围审阅改动，可逐段暂存/撤销，也可逐行留下意见后交给 Pi 修改。</p>
         </div>
         <div className="pane-header-actions">
-          <div className="review-scope" role="group" aria-label="查看范围">
+          <div className="review-scope inline-flex overflow-hidden rounded-[8px] border border-line" role="group" aria-label="查看范围">
             {SCOPES.map(([scope, label, hint]) => (
               <button
-                className={`review-scope-btn${snapshot.gitReviewScope === scope ? ' active' : ''}`}
+                className={`border-0 border-r border-r-line bg-transparent px-2.5 py-[5px] text-[11px] text-dim last:border-r-0 enabled:hover:bg-glass-hover enabled:hover:text-primary disabled:opacity-40${snapshot.gitReviewScope === scope ? ' bg-accent-subtle text-accent-text' : ''}`}
                 type="button"
                 key={scope}
                 title={hint}
@@ -287,78 +330,77 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
             ))}
           </div>
           {snapshot.gitReviewScope === 'base' ? (
-            <select
-              className="review-base-select"
-              aria-label="比较基线分支"
+            <Select
+              variant="compact"
+              className="w-[160px]"
+              ariaLabel="比较基线分支"
               value={snapshot.gitBaseRef}
-              onChange={(event) => void controller.setGitReviewScope('base', event.target.value)}
-            >
-              {(snapshot.gitBranches.length ? snapshot.gitBranches : [snapshot.gitBaseRef].filter(Boolean)).map((branch) => (
-                <option value={branch} key={branch}>{branch}</option>
-              ))}
-            </select>
+              options={(snapshot.gitBranches.length ? snapshot.gitBranches : [snapshot.gitBaseRef].filter(Boolean)).map((branch) => ({ value: branch, label: branch }))}
+              onChange={(branch) => void controller.setGitReviewScope('base', branch)}
+            />
           ) : null}
           <button className="settings-action-btn" type="button" onClick={() => void controller.loadGitStatus()} disabled={busy}>
             {snapshot.gitLoading ? '刷新中…' : '刷新'}
           </button>
-          <button className="pane-close" type="button" aria-label="关闭变更中心" title="关闭变更中心" onClick={() => controller.returnToChat()}><Icon name="close" width={16} height={16} /></button>
+          <button className="pane-close" type="button" aria-label="关闭变更中心" title="关闭变更中心" onClick={() => controller.returnToChat()}><X size={16} /></button>
         </div>
       </div>
 
-      {snapshot.gitError ? <div className="changes-notice error">{snapshot.gitError}</div> : null}
-      {!snapshot.gitLoading && !snapshot.gitError && git && !git.isRepository ? <div className="changes-notice">当前文件夹不是 Git 仓库。</div> : null}
+      {snapshot.gitError ? <div className="mx-[clamp(20px,4vw,56px)] mt-6 rounded-[10px] border border-[color-mix(in_srgb,var(--error)_38%,var(--border))] bg-muted px-[15px] py-[13px] text-[12px] text-error">{snapshot.gitError}</div> : null}
+      {!snapshot.gitLoading && !snapshot.gitError && git && !git.isRepository ? <div className="mx-[clamp(20px,4vw,56px)] mt-6 rounded-[10px] border border-line bg-muted px-[15px] py-[13px] text-[12px] text-secondary">当前文件夹不是 Git 仓库。</div> : null}
       {git?.isRepository ? (
         <>
-          <div className="changes-command-deck">
-            <div className="changes-sync-row">
-              <div className="changes-sync-copy">
-                <strong>{git.branch || 'HEAD'}</strong>
-                <span>{git.upstream ? `${git.upstream} · ↑ ${git.ahead} · ↓ ${git.behind}` : '尚未设置上游分支'}</span>
+          <div className="mt-6 grid gap-2.5 rounded-xl border border-line bg-panel p-[13px] shadow-sm">
+            <div className="flex min-w-0 items-center justify-between gap-3 max-compact:flex-col max-compact:items-stretch">
+              <div className="flex min-w-0 flex-col gap-[3px]">
+                <strong className="overflow-hidden font-mono text-[12px] leading-[1.3] font-semibold text-primary text-ellipsis whitespace-nowrap">{git.branch || 'HEAD'}</strong>
+                <span className="overflow-hidden font-mono text-[10px] leading-[1.3] text-dim text-ellipsis whitespace-nowrap">{git.upstream ? (<>{git.upstream} · <ArrowUp size={11} className="inline-block align-[-1px]" /> {git.ahead} · <ArrowDown size={11} className="inline-block align-[-1px]" /> {git.behind}</>) : '尚未设置上游分支'}</span>
               </div>
-              <div className="changes-sync-actions">
-                <button type="button" disabled={busy || !git.upstream} title={git.upstream ? '仅快进拉取上游分支' : '需要先设置上游分支'} onClick={() => void runGitAction('pull', () => controller.pullGit())}>{gitAction === 'pull' ? '拉取中…' : '拉取'}</button>
-                <button type="button" disabled={busy} onClick={() => void runGitAction('push', () => controller.pushGit())}>{gitAction === 'push' ? '推送中…' : '推送'}</button>
-              </div>
-            </div>
-            <div className="changes-stage-row">
-              <span>{stagedChanges.length} 个已暂存 · {unstagedChanges.length} 个未暂存</span>
-              <div>
-                <button type="button" disabled={busy || !unstagedChanges.length} onClick={() => void runGitAction('stage', () => controller.stageAllGit())}>全部暂存</button>
-                <button type="button" disabled={busy || !stagedChanges.length} onClick={() => void runGitAction('unstage', () => controller.unstageAllGit())}>取消全部暂存</button>
+              <div className="flex flex-none gap-[7px] max-compact:w-full max-compact:[&>button]:flex-1">
+                <button type="button" className="min-h-8 rounded-[7px] border border-line-hover bg-elevated px-3 text-[11px] font-semibold text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" disabled={busy || !git.upstream} title={git.upstream ? '仅快进拉取上游分支' : '需要先设置上游分支'} onClick={() => void runGitAction('pull', () => controller.pullGit())}>{gitAction === 'pull' ? '拉取中…' : '拉取'}</button>
+                <button type="button" className="min-h-8 rounded-[7px] border border-line-hover bg-elevated px-3 text-[11px] font-semibold text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" disabled={busy} onClick={() => void runGitAction('push', () => controller.pushGit())}>{gitAction === 'push' ? '推送中…' : '推送'}</button>
               </div>
             </div>
-            <form className="changes-commit-row" onSubmit={(event) => {
+            <div className="flex min-w-0 items-center justify-between gap-3 border-t border-t-line pt-2.5 max-compact:flex-col max-compact:items-stretch">
+              <span className="text-[10px] text-dim">{stagedChanges.length} 个已暂存 · {unstagedChanges.length} 个未暂存</span>
+              <div className="flex gap-[7px] max-compact:w-full max-compact:[&>button]:flex-1">
+                <button type="button" className="min-h-[29px] rounded-[7px] border border-line bg-transparent px-2.5 text-[10px] text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-[0.42]" disabled={busy || !unstagedChanges.length} onClick={() => void runGitAction('stage', () => controller.stageAllGit())}>全部暂存</button>
+                <button type="button" className="min-h-[29px] rounded-[7px] border border-line bg-transparent px-2.5 text-[10px] text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-[0.42]" disabled={busy || !stagedChanges.length} onClick={() => void runGitAction('unstage', () => controller.unstageAllGit())}>取消全部暂存</button>
+              </div>
+            </div>
+            <form className="flex min-w-0 items-center justify-between gap-3 max-compact:flex-col max-compact:items-stretch" onSubmit={(event) => {
               event.preventDefault();
               if (!commitMessage.trim() || !stagedChanges.length || busy) return;
               void runGitAction('commit', () => controller.commitGit(commitMessage));
             }}>
-              <input value={commitMessage} maxLength={500} disabled={busy || !stagedChanges.length} onChange={(event) => setCommitMessage(event.target.value)} placeholder={stagedChanges.length ? '输入提交说明' : '请先暂存需要提交的改动'} aria-label="Git 提交说明" />
-              <button type="submit" disabled={busy || !stagedChanges.length || !commitMessage.trim()}>{gitAction === 'commit' ? '提交中…' : `提交暂存 (${stagedChanges.length})`}</button>
+              <input className="min-h-[34px] min-w-0 flex-1 rounded-[7px] border border-line bg-muted px-2.5 text-[11px] text-primary outline-none focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-subtle)]" value={commitMessage} maxLength={500} disabled={busy || !stagedChanges.length} onChange={(event) => setCommitMessage(event.target.value)} placeholder={stagedChanges.length ? '输入提交说明' : '请先暂存需要提交的改动'} aria-label="Git 提交说明" />
+              <button type="submit" className="flex-none min-h-8 rounded-[7px] border border-[color-mix(in_srgb,var(--accent)_48%,var(--border))] bg-accent-subtle px-3 text-[11px] font-semibold text-accent-text cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45 max-compact:flex-1" disabled={busy || !stagedChanges.length || !commitMessage.trim()}>{gitAction === 'commit' ? '提交中…' : `提交暂存 (${stagedChanges.length})`}</button>
             </form>
           </div>
-          <div className="changes-workbench">
-            <aside className="changes-file-list">
-              <div className="changes-summary">
-                <span className="changes-branch">{git.branch || 'HEAD'}</span>
+          <div className="mt-6 grid min-h-[min(620px,calc(100vh_-_230px))] grid-cols-[minmax(230px,31%)_minmax(0,1fr)] overflow-hidden rounded-xl border border-line bg-muted max-compact:mt-3 max-compact:grid-cols-1">
+            <aside className="min-w-0 max-h-[260px] overflow-auto border-b border-b-line bg-[var(--bg-base)] max-compact:max-h-[260px]">
+              <div className="flex items-center justify-between gap-2 border-b border-b-line px-[13px] py-[13px] text-[11px] text-dim">
+                <span className="overflow-hidden font-mono font-semibold text-primary text-ellipsis whitespace-nowrap">{git.branch || 'HEAD'}</span>
                 <span>{changeCount ? `${changeCount} 个文件有改动` : '工作区干净'}</span>
               </div>
-              <div className="changes-section-heading"><span>暂存的更改</span><strong>{stagedChanges.length}</strong></div>
-              {stagedChanges.length ? stagedChanges.map((change) => renderChange(change, 'staged')) : <div className="changes-empty compact">还没有暂存的改动。</div>}
-              <div className="changes-section-heading"><span>更改</span><strong>{unstagedChanges.length}</strong></div>
-              {unstagedChanges.length ? unstagedChanges.map((change) => renderChange(change, 'unstaged')) : <div className="changes-empty compact">没有未暂存的改动。</div>}
+              <div className="flex min-h-8 items-center justify-between gap-2 border-b border-b-line bg-panel px-[13px] py-[7px] text-[10px] font-bold tracking-[0.035em] text-dim"><span>暂存的更改</span><strong className="font-mono text-[10px] leading-none text-secondary">{stagedChanges.length}</strong></div>
+              {stagedChanges.length ? stagedChanges.map((change) => renderChange(change, 'staged')) : <div className="p-[13px] text-[10px] text-dim">还没有暂存的改动。</div>}
+              <div className="flex min-h-8 items-center justify-between gap-2 border-b border-b-line bg-panel px-[13px] py-[7px] text-[10px] font-bold tracking-[0.035em] text-dim"><span>更改</span><strong className="font-mono text-[10px] leading-none text-secondary">{unstagedChanges.length}</strong></div>
+              {unstagedChanges.length ? unstagedChanges.map((change) => renderChange(change, 'unstaged')) : <div className="p-[13px] text-[10px] text-dim">没有未暂存的改动。</div>}
             </aside>
-            <article className="changes-diff-panel">
-              {!selected ? <div className="changes-empty">选择左侧文件以查看 diff。</div> : null}
-              {snapshot.gitDiffLoading ? <div className="changes-empty">正在读取 diff…</div> : null}
+            <article className="flex min-w-0 flex-col bg-muted">
+              {!selected ? <div className="p-[22px] text-[12px] text-dim">选择左侧文件以查看 diff。</div> : null}
+              {snapshot.gitDiffLoading ? <div className="p-[22px] text-[12px] text-dim">正在读取 diff…</div> : null}
               {selected && !snapshot.gitDiffLoading && snapshot.gitDiff ? (
                 <>
-                  <div className="changes-diff-header">
-                    <strong>{snapshot.gitDiff.path}</strong>
+                  <div className="flex justify-between gap-3 border-b border-b-line px-4 py-[13px] text-[11px] text-dim">
+                    <strong className="overflow-hidden font-mono text-primary text-ellipsis whitespace-nowrap">{snapshot.gitDiff.path}</strong>
                     <span>{reviewScopeLabel(snapshot.gitReviewScope, selectedArea, snapshot.gitBaseRef)}</span>
                   </div>
                   {snapshot.gitDiff.diff ? (
                     <DiffView
                       diff={snapshot.gitDiff.diff}
+                      className="m-0 flex-1 overflow-auto p-4 font-mono text-[12px] leading-[1.6] text-secondary whitespace-pre-wrap"
                       hunkActions={hunkActions}
                       onComment={(line, text) => controller.addReviewComment({
                         path: snapshot.gitDiff?.path || selected,
@@ -369,24 +411,24 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
                       })}
                     />
                   ) : (
-                    <div className="changes-empty">新建的未跟踪文件或二进制文件没有可展示的文本 diff。</div>
+                    <div className="p-[22px] text-[12px] text-dim">新建的未跟踪文件或二进制文件没有可展示的文本 diff。</div>
                   )}
                 </>
               ) : null}
               {snapshot.reviewComments.length ? (
-                <div className="review-comments" aria-label="审阅意见">
-                  <div className="review-comments-head">
+                <div className="shrink-0 border-t border-line bg-panel px-3.5 py-2.5" aria-label="审阅意见">
+                  <div className="mb-2 flex items-center justify-between gap-2 text-xs text-primary">
                     <strong>审阅意见 {snapshot.reviewComments.length}</strong>
-                    <div>
+                    <div className="flex gap-2">
                       <button className="settings-action-btn" type="button" onClick={() => controller.clearReviewComments()}>清空</button>
                       <button className="settings-action-btn primary" type="button" onClick={() => controller.sendReviewComments()}>交给 Pi 修改</button>
                     </div>
                   </div>
                   {snapshot.reviewComments.map((comment) => (
-                    <div className="review-comment" key={comment.id}>
-                      <span className="review-comment-loc">{comment.path}:{comment.line}</span>
-                      <span className="review-comment-text">{comment.text}</span>
-                      <button className="icon-btn" type="button" aria-label="删除这条意见" onClick={() => controller.removeReviewComment(comment.id)}>×</button>
+                    <div className="flex items-start gap-2 py-1 text-[11px] text-secondary" key={comment.id}>
+                      <span className="shrink-0 font-mono text-[10px] text-dim">{comment.path}:{comment.line}</span>
+                      <span className="min-w-0 flex-1">{comment.text}</span>
+                      <button className="icon-btn" type="button" aria-label="删除这条意见" onClick={() => controller.removeReviewComment(comment.id)}><X size={12} /></button>
                     </div>
                   ))}
                 </div>
@@ -449,29 +491,29 @@ function ModelRoutingSection({ snapshot }: { snapshot: AppSnapshot }) {
         const current = routes[role];
         const value = current ? `${current.provider || ''}::${current.modelId}` : '';
         return (
-          <div className="worktree-row" key={role}>
-            <div className="worktree-copy">
-              <strong>{label}</strong>
-              <span>{hint}</span>
+          <div className="flex items-center justify-between gap-3 border-b border-b-line py-2 last:border-b-0" key={role}>
+            <div className="flex min-w-0 flex-col">
+              <strong className="text-xs text-primary">{label}</strong>
+              <span className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap">{hint}</span>
             </div>
-            <select
-              className="review-base-select"
-              aria-label={`${label}任务使用的模型`}
+            <Select
+              variant="compact"
+              className="w-[200px]"
+              ariaLabel={`${label}任务使用的模型`}
               value={value}
-              onChange={(event) => {
-                const raw = event.target.value;
+              options={[
+                { value: '', label: '跟随当前模型' },
+                ...options.map((model) => ({
+                  value: `${model.provider || ''}::${model.id}`,
+                  label: model.provider ? `${model.provider} · ${model.id}` : model.id,
+                })),
+              ]}
+              onChange={(raw) => {
                 if (!raw) return void controller.setModelRoute(role, null);
                 const [provider = '', modelId = ''] = raw.split('::');
                 void controller.setModelRoute(role, { provider, modelId });
               }}
-            >
-              <option value="">跟随当前模型</option>
-              {options.map((model) => (
-                <option value={`${model.provider || ''}::${model.id}`} key={`${model.provider || ''}:${model.id}`}>
-                  {model.provider ? `${model.provider} · ` : ''}{model.id}
-                </option>
-              ))}
-            </select>
+            />
           </div>
         );
       }) : <div className="settings-help">还没有加载到可用模型，请先在下方配置供应商。</div>}
@@ -537,13 +579,13 @@ function AppUpdateSection({ snapshot }: { snapshot: AppSnapshot }) {
         </div>
         <div className="settings-kv">
           <span className="settings-kv-label">可用版本</span>
-          <span className={`settings-kv-value${update?.available ? ' warn' : update?.configured ? ' ok' : ''}`}>
+          <span className={`settings-kv-value ${update?.available ? 'text-warning!' : update?.configured ? 'text-success!' : ''}`}>
             {update?.available ? `${update.newVersion} · 可更新` : update?.configured ? '已是最新' : '未配置更新通道'}
           </span>
         </div>
       </div>
-      {update?.notes ? <div className="settings-runtime-path">{update.notes}</div> : null}
-      {update?.error ? <div className="settings-runtime-warning">{update.error}</div> : null}
+      {update?.notes ? <div className="mt-0.5 overflow-hidden rounded-lg border border-line bg-muted px-2.5 py-[9px] font-mono text-[10px] leading-[1.5] text-dim text-ellipsis whitespace-nowrap">{update.notes}</div> : null}
+      {update?.error ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{update.error}</div> : null}
 
       <div className="settings-endpoint-row">
         <input
@@ -597,10 +639,10 @@ function WorktreeSection({ snapshot }: { snapshot: AppSnapshot }) {
         </div>
       </div>
       {snapshot.worktrees.length ? snapshot.worktrees.map((worktree) => (
-        <div className="worktree-row" key={worktree.path}>
-          <div className="worktree-copy">
-            <strong>{worktree.name}{worktree.hasChanges ? <span className="worktree-dirty"> · 有未提交改动</span> : null}</strong>
-            <span title={worktree.path}>{worktree.path}</span>
+        <div className="flex items-center justify-between gap-3 border-b border-b-line py-2 last:border-b-0" key={worktree.path}>
+          <div className="flex min-w-0 flex-col">
+            <strong className="text-xs text-primary">{worktree.name}{worktree.hasChanges ? <span className="text-[10px] text-warning"> · 有未提交改动</span> : null}</strong>
+            <span className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap" title={worktree.path}>{worktree.path}</span>
           </div>
           <div className="pane-section-actions">
             <button className="settings-action-btn" type="button" onClick={() => void controller.launchProject(worktree.path)}>打开</button>
@@ -703,10 +745,10 @@ function ProjectInstructionsSection({ snapshot }: { snapshot: AppSnapshot }) {
           </button>
         </div>
       </div>
-      {path ? <div className="settings-meta-chip" title={path}><span className="settings-meta-chip-label">文件</span><span className="settings-meta-chip-value">{path}</span></div> : null}
-      {error ? <div className="settings-runtime-warning">{error}</div> : null}
+      {path ? <div className="settings-meta-chip" title={path}><span className="flex-none text-[10px] font-bold tracking-[0.04em] text-dim uppercase">文件</span><span className="min-w-0 overflow-hidden font-mono text-[10px] leading-[1.4] text-secondary text-ellipsis whitespace-nowrap">{path}</span></div> : null}
+      {error ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{error}</div> : null}
       <textarea
-        className="instructions-editor"
+        className="mt-2 min-h-[260px] w-full resize-y rounded-[10px] border border-line bg-[var(--code-bg)] p-3 text-[12px] leading-[1.65] text-[var(--code-fg)] outline-0 [font-family:var(--app-font-mono)] [tab-size:2] focus:border-accent"
         value={content}
         spellCheck={false}
         disabled={state === 'loading'}
@@ -739,13 +781,13 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
   };
 
   return (
-    <section className="settings-panel workspace-view">
+    <section className="absolute inset-x-0 top-(--header-height) bottom-0 z-20 overflow-auto bg-canvas pt-[26px] pb-12 px-[clamp(16px,3vw,36px)] max-compact:pt-[30px] max-compact:pb-[50px] max-compact:px-[14px]">
       <div className="pane-layout">
         <nav className="pane-nav" aria-label="设置分类">
           <div className="pane-nav-title">设置</div>
           {SETTINGS_SECTIONS.map(([id, label]) => (
             <button
-              className={`pane-nav-item${section === id ? ' active' : ''}`}
+              className={`pane-nav-item${section === id ? ' bg-accent-subtle! text-accent-text! [font-weight:680]! before:absolute! before:inset-y-[7px]! before:left-0! before:w-0.5! before:rounded-r-[2px]! before:bg-accent! before:content-[""] max-narrow:border-[color-mix(in_srgb,var(--accent)_38%,var(--border))]! max-narrow:before:hidden!' : ''}`}
               type="button"
               key={id}
               aria-current={section === id ? 'page' : undefined}
@@ -764,7 +806,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
             </div>
             <div className="pane-header-actions">
               <button className="pane-close" type="button" aria-label="关闭设置" title="关闭设置" onClick={() => controller.returnToChat()}>
-                <Icon name="close" width={16} height={16} />
+                <X size={16} />
               </button>
             </div>
           </div>
@@ -779,8 +821,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
               </div>
               <div className="theme-grid">
                 {(Object.entries(themes) as Array<[ThemeId, (typeof themes)[ThemeId]]>).map(([id, value]) => (
-                  <button
-                    className={`theme-swatch${theme === id ? ' active' : ''}`}
+                <button className={`theme-swatch${theme === id ? ' border-accent! shadow-[0_0_0_3px_var(--accent-subtle)]' : ''}`}
                     data-label={value.name}
                     aria-label={`切换为${value.name}主题`}
                     aria-pressed={theme === id}
@@ -811,9 +852,14 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
               </div>
               <div className="settings-row">
                 <span className="settings-label">思考级别</span>
-                <button className="settings-value-btn" type="button" disabled={!snapshot.thinkingSupported} onClick={() => void controller.cycleThinking()}>
-                  {snapshot.thinkingSupported ? THINKING_LABELS[snapshot.thinkingLevel] || snapshot.thinkingLevel : '不可用'}
-                </button>
+                <Select
+                  variant="compact"
+                  className="w-[110px] font-mono"
+                  ariaLabel="思考级别"
+                  value={snapshot.thinkingLevel}
+                  options={THINKING_LEVELS.map((level) => ({ value: level, label: thinkingLevelLabel(level) }))}
+                  onChange={(level) => void controller.setThinkingLevel(level)}
+                />
               </div>
               <div className="settings-row">
                 <span className="settings-label">显示思考过程</span>
@@ -856,10 +902,10 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                   );
                 })}
               </div>
-              <div className="trust-row">
-                <div className="trust-copy">
-                  <strong>项目可信任</strong>
-                  <span title={snapshot.workspace.path || undefined}>
+              <div className="mt-4 flex items-center justify-between gap-[18px] border-t border-t-line pt-[15px] max-compact:flex-col max-compact:items-start">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <strong className="text-[12px] text-primary">项目可信任</strong>
+                  <span className="overflow-hidden text-[11px] leading-[1.45] text-dim text-ellipsis whitespace-nowrap" title={snapshot.workspace.path || undefined}>
                     {snapshot.workspace.noFolder || !snapshot.workspace.path
                       ? '无文件夹会话不加载项目级 .pi 资源。'
                       : '可信任后，Pi 可加载此项目中的 .pi 设置、扩展与技能。'}
@@ -873,10 +919,10 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                 })()}
               </div>
               {!snapshot.workspace.noFolder && snapshot.workspace.path ? <p className="settings-help">项目可信任变更会在下次启动该项目的 Pi 会话时生效。</p> : null}
-              <div className="trust-row">
-                <div className="trust-copy">
-                  <strong>操作审计日志</strong>
-                  <span>记录每一次工具授权、会话删除、Git 写入与运行时更新，便于事后核查。</span>
+              <div className="mt-4 flex items-center justify-between gap-[18px] border-t border-t-line pt-[15px] max-compact:flex-col max-compact:items-start">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <strong className="text-[12px] text-primary">操作审计日志</strong>
+                  <span className="overflow-hidden text-[11px] leading-[1.45] text-dim text-ellipsis whitespace-nowrap">记录每一次工具授权、会话删除、Git 写入与运行时更新，便于事后核查。</span>
                 </div>
                 <button className="settings-action-btn" type="button" onClick={() => void controller.openAuditLog()}>打开日志</button>
               </div>
@@ -908,7 +954,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                 <div className="settings-kv-grid">
                   <div className="settings-kv">
                     <span className="settings-kv-label">来源</span>
-                    <span className={`settings-kv-value${info?.bundled || ['system', 'override'].includes(info?.source || '') ? ' ok' : ' warn'}`}>{runtimeSource(snapshot)}</span>
+                    <span className={`settings-kv-value ${info?.bundled || ['system', 'override'].includes(info?.source || '') ? 'text-success!' : 'text-warning!'}`}>{runtimeSource(snapshot)}</span>
                   </div>
                   <div className="settings-kv">
                     <span className="settings-kv-label">当前版本</span>
@@ -916,7 +962,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                   </div>
                   <div className="settings-kv">
                     <span className="settings-kv-label">最新版本</span>
-                    <span className={`settings-kv-value${info?.updateAvailable ? ' warn' : info?.latestVersion ? ' ok' : ''}`}>
+                    <span className={`settings-kv-value ${info?.updateAvailable ? 'text-warning!' : info?.latestVersion ? 'text-success!' : ''}`}>
                       {info?.latestVersion || '未检查'}
                       {info?.updateAvailable ? ' · 可更新' : info?.latestVersion ? ' · 已是最新' : ''}
                     </span>
@@ -931,9 +977,9 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                   </div>
                 </div>
 
-                {info?.command ? <div className="settings-runtime-path" title={info.command}>{info.command}</div> : null}
-                {info?.error ? <div className="settings-runtime-warning">{info.error}</div> : null}
-                {snapshot.piUpdateMessage ? <div className="settings-runtime-warning">{snapshot.piUpdateMessage}</div> : null}
+                {info?.command ? <div className="mt-0.5 overflow-hidden rounded-lg border border-line bg-muted px-2.5 py-[9px] font-mono text-[10px] leading-[1.5] text-dim text-ellipsis whitespace-nowrap" title={info.command}>{info.command}</div> : null}
+                {info?.error ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{info.error}</div> : null}
+                {snapshot.piUpdateMessage ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{snapshot.piUpdateMessage}</div> : null}
                 <p className="settings-help">更新会停止当前 Pi 会话。系统安装走 npm 全局更新；内置版本会替换 binaries 中的 pi-package。</p>
               </div>
 
@@ -950,7 +996,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                 </div>
                 <div className="settings-row">
                   <span className="settings-label">连接方式</span>
-                  <button className="settings-value-btn" type="button" disabled>
+                  <button className="settings-value-btn min-h-[30px] rounded-lg border border-line bg-muted px-[9px] font-mono text-[10px] leading-none text-primary cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-elevated disabled:text-dim disabled:cursor-not-allowed disabled:opacity-[0.62]" type="button" disabled>
                     {!window.tauDesktop.isTauri ? 'Web 模式' : window.tauDesktop.transport === 'mirror' ? String(snapshot.settings?.tauPort || 3001) : '原生 RPC'}
                   </button>
                 </div>
@@ -1103,11 +1149,11 @@ function ModelsProvidersSection({ snapshot }: { snapshot: AppSnapshot }) {
   };
 
   return (
-    <div className="pane-section flush models-section">
-      <div className="pane-section-head">
-        <div>
-          <div className="pane-section-title">模型供应商{dirty ? <span className="pane-dirty-dot" title="有未保存更改" /> : null}</div>
-          <p className="pane-section-note">
+          <div className="pane-section flush">
+            <div className="pane-section-head">
+              <div>
+                <div className="pane-section-title">模型供应商{dirty ? <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-warning align-[1px]" title="有未保存更改" /> : null}</div>
+                <p className="pane-section-note max-w-[680px]">
             管理 API 连接、兼容性和模型能力。保存后自动刷新可用模型
             {dirty ? ' · 有未保存更改' : ''}
           </p>
@@ -1131,48 +1177,60 @@ function ModelsProvidersSection({ snapshot }: { snapshot: AppSnapshot }) {
 
       {snapshot.modelsConfigPath ? (
         <div className="settings-meta-chip" title={snapshot.modelsConfigPath}>
-          <span className="settings-meta-chip-label">配置文件</span>
-          <span className="settings-meta-chip-value">{snapshot.modelsConfigPath}</span>
+          <span className="flex-none text-[10px] font-bold tracking-[0.04em] text-dim uppercase">配置文件</span>
+          <span className="min-w-0 overflow-hidden font-mono text-[10px] leading-[1.4] text-secondary text-ellipsis whitespace-nowrap">{snapshot.modelsConfigPath}</span>
         </div>
       ) : null}
-      {snapshot.modelsConfigError ? <div className="settings-runtime-warning">{snapshot.modelsConfigError}</div> : null}
+      {snapshot.modelsConfigError ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{snapshot.modelsConfigError}</div> : null}
       {/* First-load only: never blank the list during silent refresh. */}
       {snapshot.modelsConfigLoading && !snapshot.modelsConfig ? (
         <div className="settings-help">正在加载模型配置…</div>
       ) : null}
 
-      <div className="provider-selection-panel">
-        <div className="provider-selection-copy">
-          <span className="provider-selection-label">PI 默认供应商</span>
-          <strong>{snapshot.defaultProvider || '尚未设置'}</strong>
-          <span>默认模型：{snapshot.defaultModel || '尚未设置'}{currentProvider && currentModelId ? ` · 当前会话：${currentProvider}/${currentModelId}` : ''}</span>
+      <div className="mt-[18px] grid grid-cols-[minmax(0,1fr)_minmax(360px,500px)] items-center gap-[18px] rounded-[10px] border border-[color-mix(in_srgb,var(--accent)_24%,var(--border))] bg-[color-mix(in_srgb,var(--accent-subtle)_42%,var(--bg-panel))] px-4 py-3.5 max-narrow:grid-cols-1">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[10px] font-bold tracking-[0.04em] text-accent-text [font-weight:750]">PI 默认供应商</span>
+          <strong className="overflow-hidden text-[14px] text-primary text-ellipsis whitespace-nowrap">{snapshot.defaultProvider || '尚未设置'}</strong>
+          <span className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">默认模型：{snapshot.defaultModel || '尚未设置'}{currentProvider && currentModelId ? ` · 当前会话：${currentProvider}/${currentModelId}` : ''}</span>
         </div>
-        <div className="provider-selection-controls">
-          <label className="provider-selection-control">
+        <div className="grid grid-cols-2 gap-2 max-compact:grid-cols-1">
+          <div className="flex flex-col gap-[5px] text-[10px] text-secondary">
             <span>默认供应商</span>
-            <select className="settings-text-input" value={selectedProvider} onChange={(event) => void switchProvider(event.target.value)} disabled={!providers.length}>
-              <option value="">选择供应商</option>
-              {snapshot.defaultProvider && !draft.providers?.[snapshot.defaultProvider] ? <option value={snapshot.defaultProvider}>{snapshot.defaultProvider}</option> : null}
-              {providers.map(([name]) => <option value={name} key={name}>{name}</option>)}
-            </select>
-          </label>
-          <label className="provider-selection-control">
+            <Select
+              ariaLabel="默认供应商"
+              value={selectedProvider}
+              placeholder="选择供应商"
+              disabled={!providers.length}
+              options={[
+                ...(snapshot.defaultProvider && !draft.providers?.[snapshot.defaultProvider] ? [{ value: snapshot.defaultProvider, label: snapshot.defaultProvider }] : []),
+                ...providers.map(([name]) => ({ value: name, label: name })),
+              ]}
+              onChange={(value) => void switchProvider(value)}
+            />
+          </div>
+          <div className="flex flex-col gap-[5px] text-[10px] text-secondary">
             <span>默认模型</span>
-            <select className="settings-text-input" value={snapshot.defaultModel} onChange={(event) => void controller.setDefaultModel(selectedProvider, event.target.value)} disabled={!selectedProviderModels.length}>
-              <option value="">选择模型</option>
-              {snapshot.defaultModel && !selectedProviderModels.some((model) => model.id === snapshot.defaultModel) ? <option value={snapshot.defaultModel}>{snapshot.defaultModel}</option> : null}
-              {selectedProviderModels.map((model) => <option value={model.id} key={model.id}>{model.name || model.id}</option>)}
-            </select>
-          </label>
+            <Select
+              ariaLabel="默认模型"
+              value={snapshot.defaultModel}
+              placeholder="选择模型"
+              disabled={!selectedProviderModels.length}
+              options={[
+                ...(snapshot.defaultModel && !selectedProviderModels.some((model) => model.id === snapshot.defaultModel) ? [{ value: snapshot.defaultModel, label: snapshot.defaultModel }] : []),
+                ...selectedProviderModels.map((model) => ({ value: model.id, label: model.name || model.id })),
+              ]}
+              onChange={(value) => void controller.setDefaultModel(selectedProvider, value)}
+            />
+          </div>
         </div>
       </div>
 
-      <div className="provider-toolbar">
-        <div className="provider-toolbar-copy">
-          <strong>供应商列表</strong>
-          <span>{providers.length ? `${providers.length} 个已配置` : '添加一个 API 供应商开始使用'}</span>
+      <div className="my-[22px] mb-4 grid grid-cols-[minmax(0,1fr)_minmax(320px,460px)] items-center gap-6 rounded-[10px] border border-line bg-panel px-3.5 py-3 max-narrow:grid-cols-1">
+        <div className="flex flex-col gap-0.5">
+          <strong className="text-[13px]">供应商列表</strong>
+          <span className="text-[11px] text-dim">{providers.length ? `${providers.length} 个已配置` : '添加一个 API 供应商开始使用'}</span>
         </div>
-        <div className="provider-toolbar-actions">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 max-compact:grid-cols-1">
           <input
             className="settings-text-input"
             type="text"
@@ -1198,7 +1256,7 @@ function ModelsProvidersSection({ snapshot }: { snapshot: AppSnapshot }) {
         </div>
       </div>
 
-      <div className="provider-list">
+      <div className="flex flex-col gap-2.5">
         {providers.length === 0 ? (
           <div className="settings-empty-state">
             <strong>还没有自定义 provider</strong>
@@ -1254,7 +1312,7 @@ function ProviderCard({
   const addModel = () => {
     onChange({
       ...provider,
-      models: [...models, { id: '', name: '' }],
+      models: [...models, { id: '', name: '', reasoning: true }],
     });
   };
   const profiles = provider.reasoningProfiles || {};
@@ -1279,7 +1337,9 @@ function ProviderCard({
         .map((model) => ({
           id: model.id,
           name: model.name || model.id,
-          reasoning: model.reasoning,
+          // Provider catalog APIs don't report reasoning capability; default
+          // pulled models to thinking-capable so the toggle actually cycles.
+          reasoning: model.reasoning ?? true,
           contextWindow: model.contextWindow,
           maxTokens: model.maxTokens,
           input: model.input,
@@ -1315,46 +1375,49 @@ function ProviderCard({
   };
 
   return (
-    <article className={`provider-card${expanded ? ' expanded' : ''}`} data-provider-name={name}>
-      <button className="provider-card-header" type="button" onClick={onToggle}>
-        <span className="provider-card-mark" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>
-        <div className="provider-card-main">
-          <div className="provider-card-title-row">
-            <strong className="provider-card-name">{name}</strong>
-            <span className="provider-badge">{models.length} 个模型</span>
-            <span className="provider-badge muted">{provider.api || 'API 未设置'}</span>
+    <article className={`overflow-hidden rounded-xl border bg-[color-mix(in_srgb,var(--bg-panel)_88%,transparent)] shadow-none transition-[border-color,box-shadow] duration-[var(--duration)] hover:border-line-hover${expanded ? ' border-[color-mix(in_srgb,var(--accent)_42%,var(--border))]! bg-muted!' : ' border-line'}`} data-provider-name={name}>
+      <button className="flex min-h-[72px] w-full items-center justify-between gap-[13px] border-0 bg-transparent px-[15px] py-[13px] text-left text-inherit cursor-pointer hover:bg-glass-hover max-compact:items-start" type="button" onClick={onToggle}>
+        <span className="inline-flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[9px] border border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] bg-accent-subtle text-[13px] text-accent-text [font-weight:750]">{name.slice(0, 1).toUpperCase()}</span>
+        <div className="flex min-w-0 flex-col gap-[5px]">
+          <div className="flex min-w-0 flex-wrap items-center gap-[7px]">
+            <strong className="text-[14px] text-primary">{name}</strong>
+            <span className="inline-flex h-[18px] items-center rounded-full border border-line bg-panel px-1.5 text-[9px] font-semibold text-secondary">{models.length} 个模型</span>
+            <span className="inline-flex h-[18px] items-center rounded-full border border-line bg-panel px-1.5 text-[9px] font-semibold text-dim">{provider.api || 'API 未设置'}</span>
           </div>
-          <span className="provider-card-meta">
+          <span className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">
             {provider.baseUrl || '未设置 baseUrl'} · Key {maskApiKey(provider.apiKey)}
           </span>
         </div>
-        <div className="provider-card-stats" aria-hidden="true">
-          <span><strong>{models.length}</strong><small>模型</small></span>
-          <span><strong>{Object.keys(provider.reasoningProfiles || {}).length}</strong><small>预设</small></span>
+        <div className="ml-auto flex flex-none gap-[18px] border-r border-r-line px-4 max-compact:hidden" aria-hidden="true">
+          <span className="flex min-w-8 flex-col items-center gap-px"><strong className="text-[13px] leading-[1.1] text-primary">{models.length}</strong><small className="text-[9px] text-dim">模型</small></span>
+          <span className="flex min-w-8 flex-col items-center gap-px"><strong className="text-[13px] leading-[1.1] text-primary">{Object.keys(provider.reasoningProfiles || {}).length}</strong><small className="text-[9px] text-dim">预设</small></span>
         </div>
-        <span className="provider-card-chevron">{expanded ? '收起' : '配置'} <span aria-hidden="true">{expanded ? '⌃' : '⌄'}</span></span>
+        <span className="flex-none text-[11px] font-semibold text-accent-text max-compact:ml-auto">{expanded ? '收起' : '配置'} {expanded ? <ChevronUp size={12} className="ml-1 inline-block align-[-1px]" aria-hidden="true" /> : <ChevronDown size={12} className="ml-1 inline-block align-[-1px]" aria-hidden="true" />}</span>
       </button>
 
       {expanded ? (
-        <div className="provider-card-body">
-          <div className="provider-subsection">
-            <div className="provider-subsection-heading"><strong>连接配置</strong><span>请求地址和鉴权信息</span></div>
-            <div className="provider-form-grid">
-            <label className="provider-field">
+        <div className="border-t border-t-line px-[15px] pb-[18px]">
+          <div className="mt-4">
+            <div className="mb-[9px] flex items-baseline gap-2"><strong className="text-[12px]">连接配置</strong><span className="text-[10px] text-dim">请求地址和鉴权信息</span></div>
+            <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-2.5 max-narrow:grid-cols-1">
+            <label className="flex flex-col gap-[5px] text-[11px] text-secondary">
               <span>Base URL</span>
               <input className="settings-text-input" value={provider.baseUrl || ''} onChange={(event) => onChange({ ...provider, baseUrl: event.target.value })} placeholder="https://api.example.com/v1" />
             </label>
-            <label className="provider-field">
+            <div className="flex flex-col gap-[5px] text-[11px] text-secondary">
               <span>API 类型</span>
-              <select className="settings-text-input" value={provider.api || 'openai-completions'} onChange={(event) => onChange({ ...provider, api: event.target.value })}>
-                {API_OPTIONS.map((api) => <option value={api} key={api}>{api}</option>)}
-              </select>
-            </label>
-            <label className="provider-field provider-field-wide">
+              <Select
+                ariaLabel="API 类型"
+                value={provider.api || 'openai-completions'}
+                options={API_OPTIONS.map((api) => ({ value: api, label: api }))}
+                onChange={(api) => onChange({ ...provider, api })}
+              />
+            </div>
+            <label className="col-span-full flex flex-col gap-[5px] text-[11px] text-secondary">
               <span>API Key</span>
-              <span className="provider-secret-input">
+              <span className="relative flex items-center">
                 <input
-                  className="settings-text-input"
+                  className="settings-text-input pr-[58px]"
                   type={showApiKey ? 'text' : 'password'}
                   value={provider.apiKey || ''}
                   onChange={(event) => onChange({ ...provider, apiKey: event.target.value })}
@@ -1362,23 +1425,23 @@ function ProviderCard({
                   autoComplete="off"
                 />
                 <button
-                  className="provider-secret-toggle"
+                  className="absolute right-[5px] inline-flex h-[26px] min-w-12 items-center justify-center rounded-md border-0 bg-transparent px-[7px] text-[10px] font-bold text-accent-text cursor-pointer hover:bg-accent-subtle hover:text-accent-hover focus-visible:outline-offset-[-1px]"
                   type="button"
                   onClick={() => setShowApiKey((visible) => !visible)}
                   aria-label={showApiKey ? '隐藏 API Key' : '查看 API Key'}
                   title={showApiKey ? '隐藏 API Key' : '查看 API Key'}
                 >
-                  <Icon name={showApiKey ? 'eye-off' : 'eye'} width={15} height={15} />
+                  {showApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </span>
             </label>
             </div>
           </div>
 
-          <div className="provider-subsection">
-            <div className="provider-subsection-heading"><strong>兼容性设置</strong><span>根据供应商 API 行为调整请求格式</span></div>
-            <div className="provider-compat-row">
-            <label className="provider-check">
+          <div className="mt-4">
+            <div className="mb-[9px] flex items-baseline gap-2"><strong className="text-[12px]">兼容性设置</strong><span className="text-[10px] text-dim">根据供应商 API 行为调整请求格式</span></div>
+            <div className="grid grid-cols-[repeat(3,minmax(150px,1fr))_repeat(2,minmax(145px,1fr))] gap-2.5 rounded-[10px] border border-line bg-panel p-3 max-narrow:grid-cols-2">
+            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[7px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
               <input
                 type="checkbox"
                 checked={provider.compat?.supportsDeveloperRole === false}
@@ -1392,7 +1455,7 @@ function ProviderCard({
               />
               <span>禁用 developer 角色</span>
             </label>
-            <label className="provider-check">
+            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[7px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
               <input
                 type="checkbox"
                 checked={provider.compat?.supportsReasoningEffort === false}
@@ -1406,7 +1469,7 @@ function ProviderCard({
               />
               <span>禁用 reasoning_effort</span>
             </label>
-            <label className="provider-check">
+            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[7px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
               <input
                 type="checkbox"
                 checked={provider.compat?.supportsUsageInStreaming !== false}
@@ -1417,69 +1480,86 @@ function ProviderCard({
               />
               <span>流式响应包含 usage</span>
             </label>
-            <label className="provider-compat-field">
+            <div className="flex min-w-[150px] flex-col gap-1 text-[10px] text-secondary">
               <span>推理参数格式</span>
-              <select className="settings-text-input" value={provider.compat?.thinkingFormat || ''} onChange={(event) => {
-                const compat = { ...(provider.compat || {}) };
-                if (event.target.value) compat.thinkingFormat = event.target.value;
-                else delete compat.thinkingFormat;
-                onChange({ ...provider, compat });
-              }}>
-                <option value="">Pi 默认</option>
-                {['reasoning_effort', 'openrouter', 'deepseek', 'together', 'zai', 'qwen', 'chat-template', 'qwen-chat-template'].map((format) => <option value={format} key={format}>{format}</option>)}
-              </select>
-            </label>
-            <label className="provider-compat-field">
+              <Select
+                ariaLabel="推理参数格式"
+                value={provider.compat?.thinkingFormat || ''}
+                placeholder="Pi 默认"
+                options={[
+                  { value: '', label: 'Pi 默认' },
+                  ...['reasoning_effort', 'openrouter', 'deepseek', 'together', 'zai', 'qwen', 'chat-template', 'qwen-chat-template'].map((format) => ({ value: format, label: format })),
+                ]}
+                onChange={(value) => {
+                  const compat = { ...(provider.compat || {}) };
+                  if (value) compat.thinkingFormat = value;
+                  else delete compat.thinkingFormat;
+                  onChange({ ...provider, compat });
+                }}
+              />
+            </div>
+            <div className="flex min-w-[150px] flex-col gap-1 text-[10px] text-secondary">
               <span>最大输出字段</span>
-              <select className="settings-text-input" value={provider.compat?.maxTokensField || ''} onChange={(event) => {
-                const compat = { ...(provider.compat || {}) };
-                if (event.target.value) compat.maxTokensField = event.target.value;
-                else delete compat.maxTokensField;
-                onChange({ ...provider, compat });
-              }}>
-                <option value="">Pi 默认</option>
-                <option value="max_completion_tokens">max_completion_tokens</option>
-                <option value="max_tokens">max_tokens</option>
-              </select>
-            </label>
+              <Select
+                ariaLabel="最大输出字段"
+                value={provider.compat?.maxTokensField || ''}
+                placeholder="Pi 默认"
+                options={[
+                  { value: '', label: 'Pi 默认' },
+                  { value: 'max_completion_tokens', label: 'max_completion_tokens' },
+                  { value: 'max_tokens', label: 'max_tokens' },
+                ]}
+                onChange={(value) => {
+                  const compat = { ...(provider.compat || {}) };
+                  if (value) compat.maxTokensField = value;
+                  else delete compat.maxTokensField;
+                  onChange({ ...provider, compat });
+                }}
+              />
+            </div>
             </div>
           </div>
 
-          <div className="provider-models-header provider-section-header">
-            <div><strong>推理预设（Reasoning Profile）</strong><span className="provider-models-count">{Object.keys(profiles).length}</span></div>
+          <div className="mt-[22px] flex items-center justify-between gap-2.5 text-[12px] text-primary">
+            <div><strong>推理预设（Reasoning Profile）</strong><span className="ml-[7px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent-subtle align-middle text-[10px] font-bold text-accent-text">{Object.keys(profiles).length}</span></div>
             <button className="settings-action-btn" type="button" onClick={addProfile}>添加 OpenAI 标准预设</button>
           </div>
           <p className="settings-help settings-help-inline">GPT 5.5 请在模型行选择 “OpenAI 标准” 预设；当前聊天选择“高”时，会发送 <code>high</code>。测试按钮也按当前聊天强度发送。</p>
-          <div className="provider-models">
+          <div className="mt-2 flex flex-col gap-[7px]">
             {Object.entries(profiles).map(([profileId, profile]) => (
-              <div className="provider-model-entry provider-profile-entry" key={profileId}>
-                <div className="provider-profile-toolbar">
-                  <label className="provider-field"><span>预设名称</span><input className="settings-text-input" value={profile.name || profileId} onChange={(event) => onChange({ ...provider, reasoningProfiles: { ...profiles, [profileId]: { ...profile, name: event.target.value } } })} /></label>
-                  <button className="settings-action-btn danger" type="button" onClick={() => { const next = { ...profiles }; delete next[profileId]; onChange({ ...provider, reasoningProfiles: next, models: models.map((model) => model.reasoningProfile === profileId ? { ...model, reasoningProfile: undefined, reasoning: undefined } : model) }); }}>删除预设</button>
+              <div className="flex w-full min-h-[94px] flex-col gap-2.5 rounded-[9px] border border-line bg-panel p-2.5" key={profileId}>
+                <div className="grid grid-cols-[minmax(220px,1fr)_auto] items-end gap-3 max-compact:grid-cols-1 max-compact:items-stretch">
+                  <label className="flex max-w-[300px] min-w-0 flex-col gap-[5px] text-[11px] text-secondary max-compact:max-w-none"><span>预设名称</span><input className="settings-text-input" value={profile.name || profileId} onChange={(event) => onChange({ ...provider, reasoningProfiles: { ...profiles, [profileId]: { ...profile, name: event.target.value } } })} /></label>
+                  <button className="settings-action-btn danger min-h-[34px]!" type="button" onClick={() => { const next = { ...profiles }; delete next[profileId]; onChange({ ...provider, reasoningProfiles: next, models: models.map((model) => model.reasoningProfile === profileId ? { ...model, reasoningProfile: undefined, reasoning: undefined } : model) }); }}>删除预设</button>
                 </div>
-                <div className="provider-thinking-map provider-profile-map">
-                  {THINKING_LEVELS.map(([level, label]) => (
-                    <label className="provider-thinking-level" key={level}>
-                      <span>{level === 'off' ? REASONING_UI_LABELS.off : label}</span>
-                      <select className="settings-text-input" value={profile.levelMap[level]} onChange={(event) => onChange({ ...provider, reasoningProfiles: { ...profiles, [profileId]: { ...profile, levelMap: { ...profile.levelMap, [level]: event.target.value } } } })}>
-                        {level === 'off' ? <option value="omit">{REASONING_UI_LABELS.omit}</option> : null}
-                        {level !== 'off' ? <option value="unsupported">{REASONING_UI_LABELS.unsupported}</option> : null}
-                        {level !== 'off' ? PI_REASONING_LEVELS.filter((item) => item !== 'off').map((item) => <option value={item} key={item}>{item}</option>) : null}
-                      </select>
-                    </label>
+                <div className="grid grid-cols-[repeat(6,minmax(0,1fr))] items-end gap-2 p-0 max-narrow:grid-cols-3 max-compact:grid-cols-2">
+                  {THINKING_LEVELS.map((level) => (
+                    <div className="flex min-w-0 flex-col gap-1 text-[10px] text-dim" key={level}>
+                      <span>{level === 'off' ? REASONING_UI_LABELS.off : thinkingLevelLabel(level)}</span>
+                      <Select
+                        ariaLabel={`${thinkingLevelLabel(level)}强度映射`}
+                        value={profile.levelMap[level]}
+                        options={[
+                          ...(level === 'off' ? [{ value: 'omit', label: REASONING_UI_LABELS.omit }] : []),
+                          ...(level !== 'off' ? [{ value: 'unsupported', label: REASONING_UI_LABELS.unsupported }] : []),
+                          ...PI_REASONING_LEVELS.filter((item) => item !== 'off').map((item) => ({ value: item, label: item })),
+                        ]}
+                        onChange={(value) => onChange({ ...provider, reasoningProfiles: { ...profiles, [profileId]: { ...profile, levelMap: { ...profile.levelMap, [level]: value } } } })}
+                      />
+                    </div>
                   ))}
                 </div>
               </div>
             ))}
-            {!Object.keys(profiles).length ? <div className="settings-help">没有预设。模型能力不会根据 ID 猜测；需要推理时请先添加并明确配置预设。</div> : null}
+            {!Object.keys(profiles).length ? <div className="settings-help">没有预设也可以使用思考开关（级别由 Pi 管理，默认不发送参数）；若需要发送 reasoning_effort 等参数，请添加预设并在模型行选择。</div> : null}
           </div>
 
-          <div className="provider-models-header provider-section-header">
+          <div className="mt-[22px] flex items-center justify-between gap-2.5 text-[12px] text-primary">
             <div>
               <strong>模型列表</strong>
-              <span className="provider-models-count">{models.length}</span>
+              <span className="ml-[7px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent-subtle align-middle text-[10px] font-bold text-accent-text">{models.length}</span>
             </div>
-            <div className="provider-models-actions">
+            <div className="inline-flex items-center gap-2">
               <button className="settings-action-btn" type="button" onClick={() => void fetchModels()} disabled={fetchingModels}>
                 {fetchingModels ? '拉取中…' : '拉取模型'}
               </button>
@@ -1487,10 +1567,10 @@ function ProviderCard({
             </div>
           </div>
 
-          <div className="provider-models">
+          <div className="mt-2 flex flex-col gap-[7px]">
             {models.length === 0 ? <div className="settings-help">还没有模型，点击“添加模型”。</div> : null}
             {models.length > 0 ? (
-              <div className="provider-model-table-head">
+              <div className="grid grid-cols-[minmax(150px,1.3fr)_minmax(112px,1fr)_110px_110px_132px] items-center gap-2 px-0.5 text-[10px] font-semibold tracking-[0.03em] text-dim uppercase max-narrow:hidden">
                 <span>模型 ID</span>
                 <span>显示名</span>
                 <span>Context</span>
@@ -1499,8 +1579,8 @@ function ProviderCard({
               </div>
             ) : null}
             {models.map((model, index) => (
-              <div className="provider-model-entry" key={`${name}-model-${index}`}>
-                <div className="provider-model-row">
+              <div className="flex min-h-[94px] flex-col gap-[7px] rounded-[9px] border border-line bg-panel p-2.5 hover:border-line-hover" key={`${name}-model-${index}`}>
+                <div className="grid grid-cols-[minmax(150px,1.3fr)_minmax(112px,1fr)_110px_110px_132px] items-center gap-2 max-narrow:grid-cols-1 [&>*]:min-w-0">
                   <input className="settings-text-input" value={model.id || ''} placeholder="model-id" onChange={(event) => updateModel(index, { id: event.target.value })} />
                   <input className="settings-text-input" value={model.name || ''} placeholder="可选" onChange={(event) => updateModel(index, { name: event.target.value })} />
                   <input
@@ -1511,34 +1591,41 @@ function ProviderCard({
                     placeholder="按模型文档填写"
                     onChange={(event) => updateModel(index, { contextWindow: event.target.value ? Number(event.target.value) : undefined })}
                   />
-                  <select className="settings-text-input" value={model.reasoningProfile || (model.reasoning || model.thinkingLevelMap ? '__model-map__' : '')} onChange={(event) => {
-                    const selected = event.target.value;
-                    const reasoningProfile = selected && selected !== '__model-map__' ? selected : undefined;
-                    const nextModels = models.map((item, modelIndex) => {
-                      if (modelIndex !== index) return item;
-                      if (selected === '__model-map__') return { ...item, reasoningProfile: undefined, reasoning: true };
-                      if (reasoningProfile) return { ...item, reasoningProfile, reasoning: true, thinkingLevelMap: undefined };
-                      return { ...item, reasoningProfile: undefined, reasoning: false, thinkingLevelMap: undefined };
-                    });
-                    onChange({ ...provider, compat: selected ? { ...(provider.compat || {}), supportsReasoningEffort: true } : provider.compat, models: nextModels });
-                  }}>
-                    <option value="">不支持推理</option>
-                    {(model.reasoning || model.thinkingLevelMap) && !model.reasoningProfile ? <option value="__model-map__">模型强度映射</option> : null}
-                    {Object.entries(profiles).map(([profileId, profile]) => <option value={profileId} key={profileId}>{profile.name || profileId}</option>)}
-                  </select>
-                  <div className="provider-model-actions">
-                    <button className="settings-action-btn" type="button" title={`按当前 Pi 强度「${THINKING_LABELS[thinkingLevel] || thinkingLevel}」测试`} onClick={() => void testModel(index, model)} disabled={testingModelIndex !== null}>
-                      {testingModelIndex === index ? '测试中…' : `测试·${THINKING_LABELS[thinkingLevel] || thinkingLevel}`}
+                  <Select
+                    ariaLabel="推理预设"
+                    value={model.reasoningProfile || (model.thinkingLevelMap ? '__model-map__' : '__none__')}
+                    options={[
+                      { value: '__none__', label: '不发送额外参数（默认）' },
+                      { value: '__model-map__', label: '模型强度映射' },
+                      ...Object.entries(profiles).map(([profileId, profile]) => ({ value: profileId, label: profile.name || profileId })),
+                    ]}
+                    onChange={(selected) => {
+                      const isProfile = selected !== '__model-map__' && selected !== '__none__';
+                      const reasoningProfile = isProfile ? selected : undefined;
+                      const nextModels = models.map((item, modelIndex) => {
+                        if (modelIndex !== index) return item;
+                        if (selected === '__model-map__') return { ...item, reasoningProfile: undefined, reasoning: true };
+                        if (reasoningProfile) return { ...item, reasoningProfile, reasoning: true, thinkingLevelMap: undefined };
+                        // Default: thinking level stays owned by Pi, no
+                        // reasoning_effort-style params are sent.
+                        return { ...item, reasoningProfile: undefined, reasoning: true, thinkingLevelMap: undefined };
+                      });
+                      onChange({ ...provider, compat: isProfile || selected === '__model-map__' ? { ...(provider.compat || {}), supportsReasoningEffort: true } : provider.compat, models: nextModels });
+                    }}
+                  />
+                  <div className="inline-flex gap-1.5 whitespace-nowrap [&>.settings-action-btn]:min-w-0 [&>.settings-action-btn]:px-2 [&>.settings-action-btn]:whitespace-nowrap">
+                    <button className="settings-action-btn" type="button" title={`按当前 Pi 强度「${thinkingLevelLabel(thinkingLevel)}」测试`} onClick={() => void testModel(index, model)} disabled={testingModelIndex !== null}>
+                      {testingModelIndex === index ? '测试中…' : `测试·${thinkingLevelLabel(thinkingLevel)}`}
                     </button>
                     <button className="settings-action-btn danger" type="button" onClick={() => removeModel(index)}>删除</button>
                   </div>
                 </div>
-                <div className="provider-model-capabilities">
-                  {model.input?.length ? <span>输入：{model.input.join('、')}</span> : null}
-                  <label className="provider-model-limit-field">
+                <div className="mt-0.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 border-t border-t-[color-mix(in_srgb,var(--border)_72%,transparent)] pt-[7px] text-[10px] text-dim max-compact:grid-cols-1 max-compact:items-start">
+                  {model.input?.length ? <span className="w-fit rounded-full bg-panel px-1.5 py-0.5">输入：{model.input.join('、')}</span> : null}
+                  <label className="grid grid-cols-[auto_138px] items-center justify-end gap-[7px] whitespace-nowrap max-compact:grid-cols-[auto_minmax(120px,1fr)] max-compact:justify-start">
                     <span>最大输出 Token</span>
                     <input
-                      className="settings-text-input"
+                      className="settings-text-input w-[138px] min-h-7 text-[11px]"
                       type="number"
                       min={1}
                       value={model.maxTokens || ''}
@@ -1548,41 +1635,45 @@ function ProviderCard({
                   </label>
                 </div>
                 {!model.reasoningProfile && model.thinkingLevelMap ? (
-                  <div className="provider-thinking-map provider-model-thinking-map">
-                    <span className="provider-thinking-map-label">模型强度映射<br />直接配置，保存后按此映射发送</span>
-                    {THINKING_LEVELS.map(([level, label]) => {
+                  <div className="grid grid-cols-[minmax(136px,1.4fr)_repeat(6,minmax(0,1fr))] items-end gap-2 rounded-[9px] border border-line bg-panel p-2.5 max-compact:grid-cols-2">
+                    <span className="text-[11px] leading-[1.45] text-secondary">模型强度映射<br />直接配置，保存后按此映射发送</span>
+                    {THINKING_LEVELS.map((level) => {
                       const configured = model.thinkingLevelMap?.[level];
                       const value = configured === null ? 'unsupported' : typeof configured === 'string' ? configured : level === 'off' ? 'omit' : 'unsupported';
                       return (
-                        <label className="provider-thinking-level" key={level}>
-                          <span>{level === 'off' ? REASONING_UI_LABELS.off : label}</span>
-                          <select className="settings-text-input" value={value} onChange={(event) => {
-                            const selected = event.target.value;
-                            updateModel(index, {
-                              reasoning: true,
-                              thinkingLevelMap: { ...(model.thinkingLevelMap || {}), [level]: selected === 'unsupported' ? null : selected },
-                            });
-                          }}>
-                            {level === 'off' ? <option value="omit">{REASONING_UI_LABELS.omit}</option> : null}
-                            {level !== 'off' ? <option value="unsupported">{REASONING_UI_LABELS.unsupported}</option> : null}
-                            {level !== 'off' ? PI_REASONING_LEVELS.filter((item) => item !== 'off').map((item) => <option value={item} key={item}>{item}</option>) : null}
-                          </select>
-                        </label>
+                        <div className="flex min-w-0 flex-col gap-1 text-[10px] text-dim" key={level}>
+                          <span>{level === 'off' ? REASONING_UI_LABELS.off : thinkingLevelLabel(level)}</span>
+                          <Select
+                            ariaLabel={`${thinkingLevelLabel(level)}强度映射`}
+                            value={value}
+                            options={[
+                              ...(level === 'off' ? [{ value: 'omit', label: REASONING_UI_LABELS.omit }] : []),
+                              ...(level !== 'off' ? [{ value: 'unsupported', label: REASONING_UI_LABELS.unsupported }] : []),
+                              ...PI_REASONING_LEVELS.filter((item) => item !== 'off').map((item) => ({ value: item, label: item })),
+                            ]}
+                            onChange={(selected) => {
+                              updateModel(index, {
+                                reasoning: true,
+                                thinkingLevelMap: { ...(model.thinkingLevelMap || {}), [level]: selected === 'unsupported' ? null : selected },
+                              });
+                            }}
+                          />
+                        </div>
                       );
                     })}
                   </div>
                 ) : null}
                 {testResults[index] ? (
-                  <div className={`provider-model-test-result${testResults[index].error ? ' error' : ''}`}>
+                  <div className={`rounded-[9px] border p-2.5 text-[11px] text-secondary ${testResults[index].error ? 'border-[color-mix(in_srgb,var(--error)_38%,var(--border))] bg-[color-mix(in_srgb,var(--error)_5%,var(--bg-panel))]' : 'border-[color-mix(in_srgb,var(--success)_32%,var(--border))] bg-[color-mix(in_srgb,var(--success)_5%,var(--bg-panel))]'}`}>
                     <strong>{testResults[index].error ? '测试失败' : '非流式响应'}</strong>
-                    <pre>{testResults[index].error || testResults[index].output}</pre>
+                    <pre className="mt-1.5 mb-0 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.55] text-primary">{testResults[index].error || testResults[index].output}</pre>
                   </div>
                 ) : null}
               </div>
             ))}
           </div>
 
-          <div className="provider-card-footer">
+          <div className="mt-3.5 flex justify-end">
             <button className="settings-action-btn danger" type="button" onClick={onRemove}>删除 Provider</button>
           </div>
         </div>
@@ -1614,8 +1705,8 @@ function ExtensionRow({ item, installing }: { item: PiExtensionInfo; installing:
           {item.installedPath ? <span className="catalog-meta-item" title={item.installedPath}>{shortenPath(item.installedPath)}</span> : null}
         </div>
       </div>
-      <button className={`catalog-action${item.installed ? ' done' : ''}`} type="button" disabled={item.installed || installing} onClick={() => void controller.installExtension(item.id)}>
-        {item.installed ? <><Icon name="check" width={14} height={14} /><span>已安装</span></> : installing ? <span>正在安装…</span> : <><Icon name="download" width={14} height={14} /><span>安装</span></>}
+      <button className={`catalog-action${item.installed ? ' border-[color-mix(in_srgb,var(--success)_26%,var(--border))]! text-success! cursor-default! opacity-100!' : ''}`} type="button" disabled={item.installed || installing} onClick={() => void controller.installExtension(item.id)}>
+        {item.installed ? <><Check size={14} /><span>已安装</span></> : installing ? <span>正在安装…</span> : <><Download size={14} /><span>安装</span></>}
       </button>
     </div>
   );
@@ -1636,18 +1727,18 @@ export function ExtensionsView({ snapshot }: { snapshot: AppSnapshot }) {
   return (
       <div className="pane-section flush">
         <div className="catalog-toolbar">
-          <label className="catalog-search-wrap"><Icon name="search" width={14} height={14} /><input type="search" className="catalog-search" placeholder="搜索扩展" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-          <button className="catalog-icon-btn" type="button" title="刷新扩展" aria-label="刷新扩展" onClick={() => void controller.loadExtensions(true)}><Icon name="refresh" width={14} height={14} /></button>
+          <label className="catalog-search-wrap"><Search size={14} /><input type="search" className="catalog-search" placeholder="搜索扩展" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+          <button className="catalog-icon-btn" type="button" title="刷新扩展" aria-label="刷新扩展" onClick={() => void controller.loadExtensions(true)}><RotateCw size={14} /></button>
         </div>
         <div className="catalog-filters">
           {categories.map((value) => <button className={`catalog-filter${category === value ? ' active' : ''}`} type="button" key={value} onClick={() => setCategory(value)}>{({ All: '全部', Installed: '已安装' } as Record<string, string>)[value] || value}</button>)}
         </div>
-        <div className={`catalog-status${snapshot.extensionError ? ' error' : ''}`}>{status}</div>
+        <div className={`catalog-status${snapshot.extensionError ? ' border-[color-mix(in_srgb,var(--error)_28%,var(--border))]! text-error! whitespace-normal!' : ''}`}>{status}</div>
         <div className="catalog-list">
           {filtered.map((item) => <ExtensionRow item={item} installing={snapshot.extensionInstallingId === item.id} key={item.id} />)}
           {!snapshot.extensionsLoading && filtered.length === 0 ? (
             <div className="catalog-empty">
-              <span className="catalog-empty-icon"><Icon name="grid" width={15} height={15} /></span>
+              <span className="catalog-empty-icon"><LayoutGrid size={15} /></span>
               <span>没有符合当前筛选条件的扩展。</span>
             </div>
           ) : null}
@@ -1741,11 +1832,11 @@ export function PackagesView({ snapshot }: { snapshot: AppSnapshot }) {
       <section className="pane-section flush">
         <div className="catalog-toolbar">
           <form className="catalog-search-wrap" onSubmit={(event) => { event.preventDefault(); void controller.searchPackages(query); }}>
-            <Icon name="search" width={14} height={14} />
+            <Search size={14} />
             <input type="search" className="catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索官方 Pi 软件包，回车确认" aria-label="搜索 Pi 软件包" />
           </form>
           <button className="catalog-icon-btn" type="button" title="刷新软件包" aria-label="刷新软件包" disabled={snapshot.packagesLoading || snapshot.packageSearchLoading} onClick={() => { void controller.loadPackages(true); void controller.searchPackages(query); }}>
-            <Icon name="refresh" width={14} height={14} />
+            <RotateCw size={14} />
           </button>
         </div>
         <div className="catalog-filters">
@@ -1755,7 +1846,7 @@ export function PackagesView({ snapshot }: { snapshot: AppSnapshot }) {
             </button>
           ))}
         </div>
-        <div className={`catalog-status${snapshot.packageSearchError || snapshot.packageError ? ' error' : ''}`}>{status}</div>
+        <div className={`catalog-status${snapshot.packageSearchError || snapshot.packageError ? ' border-[color-mix(in_srgb,var(--error)_28%,var(--border))]! text-error! whitespace-normal!' : ''}`}>{status}</div>
         <div className="catalog-list">
           {visible.map((item) => (
             <PackageRow
@@ -1780,11 +1871,11 @@ export function PackagesView({ snapshot }: { snapshot: AppSnapshot }) {
             <p className="pane-section-note">目录里没有的来源：npm 包名、Git 仓库或本地路径。</p>
           </div>
         </div>
-        <form className="package-install-form" onSubmit={(event) => { event.preventDefault(); const source = packageSource.trim(); if (!source) return; install(source); setPackageSource(''); }}>
-          <input className="settings-text-input" value={packageSource} onChange={(event) => setPackageSource(event.target.value)} placeholder="npm:包名、git:github.com/用户/仓库或本地路径" aria-label="Pi 软件包来源" />
+        <form className="flex gap-2 max-compact:flex-col" onSubmit={(event) => { event.preventDefault(); const source = packageSource.trim(); if (!source) return; install(source); setPackageSource(''); }}>
+          <input className="settings-text-input min-w-0 flex-1" value={packageSource} onChange={(event) => setPackageSource(event.target.value)} placeholder="npm:包名、git:github.com/用户/仓库或本地路径" aria-label="Pi 软件包来源" />
           <button className="settings-action-btn primary" type="submit" disabled={!packageSource.trim() || snapshot.packageInstalling}>{snapshot.packageInstalling ? '正在安装…' : '安装软件包'}</button>
         </form>
-        <p className="packages-security-note">第三方软件包可执行扩展代码。请仅安装你信任的来源。</p>
+        <p className="mt-2.5 mb-0 text-[11px] leading-[1.55] text-warning">第三方软件包可执行扩展代码。请仅安装你信任的来源。</p>
       </section>
     </>
   );
@@ -1811,8 +1902,8 @@ function PromptRow({
     <div className="catalog-row">
       <div className="catalog-main">
         <div className="catalog-title-row">
-          <div className="catalog-name mono">/{template.name}</div>
-          {template.argumentHint ? <span className="prompt-hint mono">{template.argumentHint}</span> : null}
+          <div className="catalog-name font-mono text-[12px]">/{template.name}</div>
+          {template.argumentHint ? <span className="flex-none font-mono text-[10px] text-accent-text">{template.argumentHint}</span> : null}
           <span className={`catalog-tag${template.editable ? '' : ' warn'}`}>{scopeLabel(template.scope)}</span>
         </div>
         <div className="catalog-description">{template.description || '该模板没有提供描述。'}</div>
@@ -1907,7 +1998,7 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
           <label className="prompt-field">
             <span>命令名</span>
             <input
-              className="settings-text-input mono"
+              className="settings-text-input font-mono"
               value={draft.name}
               disabled={readOnly}
               placeholder="review"
@@ -1915,24 +2006,27 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
             />
             <small>调用方式：/{draft.name.trim().replace(/^\//, '') || 'name'}</small>
           </label>
-          <label className="prompt-field">
+          <div className="prompt-field">
             <span>保存位置</span>
-            <select
-              className="settings-text-input"
+            <Select
+              ariaLabel="保存位置"
               value={draft.scope}
               disabled={readOnly}
-              onChange={(event) => setDraft({ ...draft, scope: event.target.value as 'user' | 'project' })}
-            >
-              <option value="user">全局 · {snapshot.prompts?.userDir || '~/.pi/agent/prompts'}</option>
-              <option value="project" disabled={!projectDir || !snapshot.prompts?.projectTrusted}>
-                项目 · {projectDir ? (snapshot.prompts?.projectTrusted ? projectDir : `${projectDir}（项目尚未信任）`) : '需要先打开一个项目'}
-              </option>
-            </select>
-          </label>
+              options={[
+                { value: 'user', label: `全局 · ${snapshot.prompts?.userDir || '~/.pi/agent/prompts'}` },
+                {
+                  value: 'project',
+                  disabled: !projectDir || !snapshot.prompts?.projectTrusted,
+                  label: `项目 · ${projectDir ? (snapshot.prompts?.projectTrusted ? projectDir : `${projectDir}（项目尚未信任）`) : '需要先打开一个项目'}`,
+                },
+              ]}
+              onChange={(value) => setDraft({ ...draft, scope: value as 'user' | 'project' })}
+            />
+          </div>
           <label className="prompt-field">
             <span>描述</span>
             <input
-              className="settings-text-input"
+              className="settings-text-input disabled:cursor-default disabled:opacity-[0.68]"
               value={draft.description}
               disabled={readOnly}
               placeholder="留空时 Pi 会取正文第一行"
@@ -1942,7 +2036,7 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
           <label className="prompt-field">
             <span>参数提示</span>
             <input
-              className="settings-text-input mono"
+              className="settings-text-input font-mono disabled:cursor-default disabled:opacity-[0.68]"
               value={draft.argumentHint}
               disabled={readOnly}
               placeholder="<必填参数> [可选参数]"
@@ -1953,7 +2047,7 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
           <label className="prompt-field wide">
             <span>正文</span>
             <textarea
-              className="settings-text-input prompt-body mono"
+              className="settings-text-input min-h-[220px] resize-y px-[11px] py-2.5 leading-[1.65] font-mono disabled:cursor-default disabled:opacity-[0.68]"
               value={draft.body}
               disabled={readOnly}
               rows={14}
@@ -1962,9 +2056,9 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
             />
           </label>
         </div>
-        {snapshot.promptError ? <div className="catalog-status error">{snapshot.promptError}</div> : null}
+        {snapshot.promptError ? <div className="catalog-status border-[color-mix(in_srgb,var(--error)_28%,var(--border))]! text-error! whitespace-normal!">{snapshot.promptError}</div> : null}
         {!readOnly ? (
-          <div className="prompt-editor-actions">
+          <div className="mt-[13px] flex justify-end">
             <button
               className="settings-action-btn primary"
               type="button"
@@ -1982,11 +2076,11 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
       <section className="pane-section flush">
         <div className="catalog-toolbar">
           <div className="catalog-search-wrap">
-            <Icon name="search" width={14} height={14} />
+            <Search size={14} />
             <input type="search" className="catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索提示模板" aria-label="搜索提示模板" />
           </div>
           <button className="catalog-icon-btn" type="button" title="刷新模板" aria-label="刷新模板" disabled={snapshot.promptsLoading} onClick={() => void controller.loadPrompts(true)}>
-            <Icon name="refresh" width={14} height={14} />
+            <RotateCw size={14} />
           </button>
           <button className="catalog-action primary" type="button" onClick={() => openEditor()}>新建模板</button>
         </div>
@@ -2016,13 +2110,13 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
             <p className="pane-section-note">目录扫描不递归，只读取 <code>.md</code> 文件。</p>
           </div>
         </div>
-        <ul className="prompt-locations">
-          <li><span>全局</span><code>{snapshot.prompts?.userDir || '~/.pi/agent/prompts'}</code></li>
-          <li>
-            <span>项目</span>
-            <code>{projectDir || '<项目>/.pi/prompts'}{snapshot.prompts && !snapshot.prompts.projectTrusted ? '（项目尚未信任，Pi 不会加载）' : ''}</code>
+        <ul className="m-0 list-none p-0">
+          <li className="grid grid-cols-[56px_minmax(0,1fr)] items-baseline gap-2.5 border-b border-b-line py-1.5 last:border-b-0"><span className="text-[10px] text-dim">全局</span><code className="overflow-hidden font-mono text-[10px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">{snapshot.prompts?.userDir || '~/.pi/agent/prompts'}</code></li>
+          <li className="grid grid-cols-[56px_minmax(0,1fr)] items-baseline gap-2.5 border-b border-b-line py-1.5 last:border-b-0">
+            <span className="text-[10px] text-dim">项目</span>
+            <code className="overflow-hidden font-mono text-[10px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">{projectDir || '<项目>/.pi/prompts'}{snapshot.prompts && !snapshot.prompts.projectTrusted ? '（项目尚未信任，Pi 不会加载）' : ''}</code>
           </li>
-          <li><span>软件包</span><code>settings.json 里 packages 声明的包：pi.prompts 或 prompts/ 目录</code></li>
+          <li className="grid grid-cols-[56px_minmax(0,1fr)] items-baseline gap-2.5 border-b border-b-line py-1.5 last:border-b-0"><span className="text-[10px] text-dim">软件包</span><code className="overflow-hidden font-mono text-[10px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">settings.json 里 packages 声明的包：pi.prompts 或 prompts/ 目录</code></li>
         </ul>
         <p className="pane-section-note">
           settings.json 的 <code>prompts</code> 数组不是额外来源，而是对上面前两项的启用/禁用过滤器（只有 <code>!</code>、<code>+</code>、<code>-</code> 前缀的条目生效）。
@@ -2045,20 +2139,20 @@ export function CustomizationView({ snapshot }: { snapshot: AppSnapshot }) {
   ];
   const current = tabs.find((item) => item.id === tab) || tabs[0];
   return (
-    <section className="extensions-panel workspace-view" aria-label="定制">
+    <section className="absolute inset-x-0 top-(--header-height) bottom-0 z-20 overflow-auto bg-canvas pt-[26px] pb-12 px-[clamp(16px,3vw,36px)] max-compact:pt-[30px] max-compact:pb-[50px] max-compact:px-[14px]" aria-label="定制">
       <div className="pane-layout">
         <nav className="pane-nav" aria-label="定制内容">
           <div className="pane-nav-title">定制</div>
           {tabs.map((item) => (
             <button
-              className={`pane-nav-item${tab === item.id ? ' active' : ''}`}
+              className={`pane-nav-item${tab === item.id ? ' bg-accent-subtle! text-accent-text! [font-weight:680]! before:absolute! before:inset-y-[7px]! before:left-0! before:w-0.5! before:rounded-r-[2px]! before:bg-accent! before:content-[""] max-narrow:border-[color-mix(in_srgb,var(--accent)_38%,var(--border))]! max-narrow:before:hidden!' : ''}`}
               type="button"
               key={item.id}
               aria-current={tab === item.id ? 'page' : undefined}
               onClick={() => setTab(item.id)}
             >
               <span>{item.label}</span>
-              {item.count ? <span className="pane-nav-count">{item.count}</span> : null}
+              {item.count ? <span className={`pane-nav-count${tab === item.id ? ' text-accent-text! opacity-80' : ''}`}>{item.count}</span> : null}
             </button>
           ))}
         </nav>
@@ -2070,7 +2164,7 @@ export function CustomizationView({ snapshot }: { snapshot: AppSnapshot }) {
               <p className="pane-header-subtitle">{current.subtitle}</p>
             </div>
             <div className="pane-header-actions">
-              <button className="pane-close" type="button" aria-label="关闭定制" title="关闭定制" onClick={() => controller.returnToChat()}><Icon name="close" width={16} height={16} /></button>
+              <button className="pane-close" type="button" aria-label="关闭定制" title="关闭定制" onClick={() => controller.returnToChat()}><X size={16} /></button>
             </div>
           </div>
           {tab === 'extensions' ? <ExtensionsView snapshot={snapshot} /> : null}
@@ -2144,15 +2238,15 @@ function AutomationsView({ snapshot }: { snapshot: AppSnapshot }) {
       </div>
 
       {draft.length ? draft.map((item) => (
-        <div className="automation-card" key={item.id}>
-          <div className="automation-head">
+        <div className="mb-3 flex flex-col gap-2 rounded-[12px] border border-line bg-panel p-3" key={item.id}>
+          <div className="flex flex-wrap items-center gap-2">
             <input
-              className="settings-text-input"
+              className="settings-text-input min-w-[180px] flex-1"
               value={item.name}
               aria-label="任务名称"
               onChange={(event) => update(item.id, { name: event.target.value })}
             />
-            <label className="automation-toggle">
+            <label className="flex items-center gap-1.5 text-[11px] text-secondary">
               <input
                 type="checkbox"
                 checked={item.enabled}
@@ -2171,7 +2265,7 @@ function AutomationsView({ snapshot }: { snapshot: AppSnapshot }) {
           </div>
 
           <textarea
-            className="automation-prompt"
+            className="w-full resize-y rounded-[8px] border border-line bg-muted p-2 text-xs text-primary outline-0 [font-family:inherit]"
             rows={3}
             value={item.prompt}
             aria-label="任务提示词"
@@ -2179,19 +2273,21 @@ function AutomationsView({ snapshot }: { snapshot: AppSnapshot }) {
             onChange={(event) => update(item.id, { prompt: event.target.value })}
           />
 
-          <div className="automation-schedule">
-            <select
-              className="review-base-select"
-              aria-label="调度方式"
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              variant="compact"
+              className="w-[96px]"
+              ariaLabel="调度方式"
               value={item.kind}
-              onChange={(event) => update(item.id, { kind: event.target.value as Automation['kind'] })}
-            >
-              <option value="daily">每天</option>
-              <option value="interval">每隔</option>
-            </select>
+              options={[
+                { value: 'daily', label: '每天' },
+                { value: 'interval', label: '每隔' },
+              ]}
+              onChange={(value) => update(item.id, { kind: value as Automation['kind'] })}
+            />
             {item.kind === 'daily' ? (
               <input
-                className="settings-text-input automation-time"
+                className="settings-text-input w-[96px] shrink-0"
                 value={item.time}
                 aria-label="运行时间"
                 placeholder="09:30"
@@ -2199,7 +2295,7 @@ function AutomationsView({ snapshot }: { snapshot: AppSnapshot }) {
               />
             ) : (
               <input
-                className="settings-text-input automation-time"
+                className="settings-text-input w-[96px] shrink-0"
                 type="number"
                 min={1}
                 value={item.minutes}
@@ -2207,16 +2303,16 @@ function AutomationsView({ snapshot }: { snapshot: AppSnapshot }) {
                 onChange={(event) => update(item.id, { minutes: Number(event.target.value) || 1 })}
               />
             )}
-            {item.kind === 'interval' ? <span className="automation-unit">分钟</span> : null}
+            {item.kind === 'interval' ? <span className="text-[11px] text-dim">分钟</span> : null}
             <input
-              className="settings-text-input automation-path"
+              className="settings-text-input min-w-[200px] flex-1"
               value={item.projectPath}
               aria-label="项目路径"
               placeholder="项目路径（留空表示当前项目）"
               onChange={(event) => update(item.id, { projectPath: event.target.value })}
             />
           </div>
-          <div className="automation-status">{automationStatus(item)}</div>
+          <div className="text-[10px] text-dim">{automationStatus(item)}</div>
         </div>
       )) : <div className="settings-help">还没有定时任务。新建一个，让 Pi 每天早上先把简报准备好。</div>}
       <p className="settings-help">任务会启动（或复用）对应项目的 Pi 进程并发送提示词；PiCode 关闭时不会执行。</p>
@@ -2246,7 +2342,7 @@ function PackageRow({
     <div className={`catalog-row${item.installed ? ' installed' : ''}`}>
       <div className="catalog-main">
         <div className="catalog-title-row">
-          <div className="catalog-name mono" title={item.source}>{item.name}</div>
+          <div className="catalog-name font-mono text-[12px]" title={item.source}>{item.name}</div>
           {item.installed ? <span className="catalog-tag ok">已安装{item.version ? ` v${item.version}` : ''}</span> : null}
           {item.installed && !item.enabled ? <span className="catalog-tag warn">已禁用</span> : null}
         </div>
@@ -2272,7 +2368,7 @@ function PackageRow({
         </button>
       ) : (
         <button className="catalog-action" type="button" disabled={busy} onClick={onInstall}>
-          {installing ? <span>正在安装…</span> : <><Icon name="download" width={14} height={14} /><span>安装</span></>}
+          {installing ? <span>正在安装…</span> : <><Download size={14} /><span>安装</span></>}
         </button>
       )}
     </div>

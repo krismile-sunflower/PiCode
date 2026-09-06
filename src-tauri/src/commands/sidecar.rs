@@ -694,6 +694,29 @@ pub async fn switch_instance(state: State<'_, AppState>, pid: u32) -> Result<PiI
     Ok(instance)
 }
 
+/// Stop a background Pi instance this window spawned.
+///
+/// Instances belonging to other PiCode windows are not children of this
+/// process, and the instance this window is attached to keeps the UI alive —
+/// both are rejected instead of silently doing the wrong thing.
+#[tauri::command]
+pub async fn stop_instance(state: State<'_, AppState>, pid: u32) -> Result<(), String> {
+    if !state
+        .pi_children
+        .lock()
+        .map_err(lock_err)?
+        .contains_key(&pid)
+    {
+        return Err(format!("Pi instance {pid} is not managed by this window"));
+    }
+    if state.active_pid.lock().map_err(lock_err)?.to_owned() == Some(pid) {
+        return Err("Cannot stop the instance attached to this window".into());
+    }
+    stop_pi_inner(state.inner(), Some(pid))?;
+    crate::audit::ok("sidecar.stop_instance", serde_json::json!({ "pid": pid }));
+    Ok(())
+}
+
 pub fn active_instance_for_port(
     state: &State<'_, AppState>,
     port: Option<u16>,

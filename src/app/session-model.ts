@@ -23,13 +23,6 @@ export function instanceTransport(instance?: PiInstance | null): 'rpc' | 'mirror
   return instance?.transport || (instance?.port ? 'mirror' : 'rpc');
 }
 
-export function modelSupportsThinking(
-  model?: { reasoning?: boolean; thinkingLevelMap?: Record<string, unknown> } | null,
-): boolean {
-  if (!model) return true;
-  return Boolean(model.reasoning || model.thinkingLevelMap);
-}
-
 export function resolveModel(value: unknown, models: ModelInfo[]): ModelInfo | null {
   if (value && typeof value === 'object') {
     const candidate = value as ModelInfo;

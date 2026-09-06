@@ -604,7 +604,6 @@ export interface AppSnapshot {
   currentModelId: string;
   currentModelProvider: string;
   thinkingLevel: ThinkingLevel;
-  thinkingSupported: boolean;
   contextWindowSize: number;
   /** Undefined means the active Pi runtime did not provide an estimate yet. */
   contextUsage?: ContextUsage;

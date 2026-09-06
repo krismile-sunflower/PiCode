@@ -301,14 +301,15 @@ export function App() {
         />
         <div
           ref={sidebarResizer}
-          className="panel-resizer panel-resizer-left"
+          className={`panel-resizer panel-resizer-left relative z-[130] w-1 flex-[0_0_4px] cursor-col-resize bg-transparent${sidebarOpen ? '' : ' hidden'} max-compact:hidden!`}
           role="separator"
           aria-orientation="vertical"
           aria-label="调整会话栏宽度"
         />
-        <main className="main relative z-[1] flex h-full min-w-0 flex-[1_1_auto] flex-col overflow-hidden">
+        <main className="main relative z-[1] flex h-full min-w-0 flex-[1_1_auto] flex-col overflow-hidden bg-canvas bg-[image:linear-gradient(rgba(226,232,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(226,232,255,0.025)_1px,transparent_1px)] bg-[length:32px_32px] light:bg-[image:linear-gradient(rgba(29,36,53,0.032)_1px,transparent_1px),linear-gradient(90deg,rgba(29,36,53,0.032)_1px,transparent_1px)]">
           <Header
             snapshot={snapshot}
+            sidebarOpen={sidebarOpen}
             onOpenSidebar={() => setSidebarOpen(true)}
             fileOpen={fileOpen}
             onToggleFiles={toggleFiles}
@@ -318,7 +319,7 @@ export function App() {
           {snapshot.view === 'settings' ? <SettingsView snapshot={snapshot} /> : null}
           {snapshot.view === 'customization' ? <CustomizationView snapshot={snapshot} /> : null}
           {snapshot.view === 'chat' ? (
-            <div className="chat-panel">
+            <div className="relative z-[1] flex min-h-0 flex-auto flex-col overflow-hidden isolate">
               <MessageList
                 timeline={snapshot.timeline}
                 streaming={snapshot.isStreaming}
@@ -351,7 +352,7 @@ export function App() {
         </main>
         <div
           ref={fileResizer}
-          className="panel-resizer panel-resizer-right"
+          className={`panel-resizer panel-resizer-right relative z-[130] w-1 flex-[0_0_4px] cursor-col-resize bg-transparent${fileOpen ? '' : ' hidden'} max-narrow:hidden!`}
           role="separator"
           aria-orientation="vertical"
           aria-label="调整文件栏宽度"

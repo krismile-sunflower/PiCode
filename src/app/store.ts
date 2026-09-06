@@ -37,7 +37,6 @@ const initialSnapshot: AppSnapshot = {
   currentModelId: '',
   currentModelProvider: '',
   thinkingLevel: 'off',
-  thinkingSupported: true,
   contextWindowSize: 0,
   contextUsage: undefined,
   lastUsage: null,

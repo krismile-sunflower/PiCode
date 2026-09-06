@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 
 interface DiffLine {
   text: string;
@@ -97,7 +98,7 @@ interface DiffViewProps {
  * undifferentiated gray block made reviewing changes harder than reading the
  * chat that produced them.
  */
-export function DiffView({ diff, className = 'changes-diff', hunkActions = [], onComment }: DiffViewProps) {
+export function DiffView({ diff, className = '', hunkActions = [], onComment }: DiffViewProps) {
   const [commenting, setCommenting] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
   const lines = useMemo(() => {
@@ -124,28 +125,35 @@ export function DiffView({ diff, className = 'changes-diff', hunkActions = [], o
   };
 
   return (
-    <div className={`${className} diff-view`}>
+    <div className={`${className} flex flex-col py-2 font-mono text-[12px] leading-[1.6] whitespace-normal`}>
       {lines.map((line, index) => (
-        <div className={`diff-line diff-${line.kind}`} key={`${index}-${line.text.slice(0, 12)}`}>
-          <span className="diff-gutter" aria-hidden="true">{line.oldNumber ?? ''}</span>
-          <span className="diff-gutter" aria-hidden="true">{line.newNumber ?? ''}</span>
+        <div
+          className={`group relative flex flex-wrap items-start min-h-[19px]${line.kind === 'add' ? ' bg-[color-mix(in_srgb,var(--success)_13%,transparent)]' : line.kind === 'del' ? ' bg-[color-mix(in_srgb,var(--error)_12%,transparent)]' : line.kind === 'hunk' ? ' bg-glass' : ''}`}
+          key={`${index}-${line.text.slice(0, 12)}`}
+        >
+          <span className="w-10 shrink-0 select-none pr-2 text-right text-[11px] text-ghost" aria-hidden="true">{line.oldNumber ?? ''}</span>
+          <span className="w-10 shrink-0 select-none pr-2 text-right text-[11px] text-ghost" aria-hidden="true">{line.newNumber ?? ''}</span>
           {onComment && line.kind !== 'meta' && line.kind !== 'hunk' ? (
             <button
-              className="diff-comment-btn"
+              className="absolute left-[76px] hidden h-[15px] w-[15px] items-center justify-center rounded-[4px] border-0 bg-accent p-0 leading-none text-white group-hover:flex"
               type="button"
               title="对这一行添加审阅意见"
               aria-label={`对第 ${line.newNumber ?? line.oldNumber ?? 0} 行添加审阅意见`}
               onClick={() => { setCommenting(commenting === index ? null : index); setDraft(''); }}
             >
-              +
+              <Plus size={10} />
             </button>
           ) : null}
-          <code className="diff-text">{line.text || ' '}</code>
+          <code
+            className={`min-w-0 flex-1 pr-3 [font:inherit] whitespace-pre-wrap break-words${line.kind === 'add' ? ' text-[var(--code-added)]' : line.kind === 'del' ? ' text-[var(--code-deleted)]' : line.kind === 'hunk' ? ' text-accent-text' : line.kind === 'meta' ? ' text-dim' : ' text-secondary'}`}
+          >
+            {line.text || ' '}
+          </code>
           {line.kind === 'hunk' && hunkActions.length ? (
-            <span className="diff-hunk-actions">
+            <span className="ml-auto inline-flex gap-1 pr-2">
               {hunkActions.map((action) => (
                 <button
-                  className="diff-hunk-action"
+                  className="rounded-[var(--radius-pill)] border border-line bg-glass px-[7px] py-px text-[10px] text-dim hover:border-accent hover:text-accent-text"
                   type="button"
                   key={action.label}
                   title={action.title}
@@ -160,21 +168,22 @@ export function DiffView({ diff, className = 'changes-diff', hunkActions = [], o
             </span>
           ) : null}
           {commenting === index ? (
-            <div className="diff-comment-editor">
+            <div className="mt-1.5 mb-2 ml-[88px] flex w-full flex-col gap-1.5 pr-3">
               <textarea
                 autoFocus
                 rows={2}
                 value={draft}
                 placeholder="写下对这一行的意见，稍后一并发给 Pi"
+                className="w-full resize-y rounded-[8px] border border-line bg-panel p-2 text-xs text-primary outline-0 [font-family:inherit]"
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') { setCommenting(null); setDraft(''); }
                   if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submitComment(index);
                 }}
               />
-              <div className="diff-comment-actions">
-                <button type="button" onClick={() => { setCommenting(null); setDraft(''); }}>取消</button>
-                <button type="button" disabled={!draft.trim()} onClick={() => submitComment(index)}>添加（⌘⏎）</button>
+              <div className="flex justify-end gap-2">
+                <button className="rounded-[7px] border border-line bg-glass px-2.5 py-[3px] text-[11px] text-secondary" type="button" onClick={() => { setCommenting(null); setDraft(''); }}>取消</button>
+                <button className="rounded-[7px] border border-accent bg-glass px-2.5 py-[3px] text-[11px] text-accent-text" type="button" disabled={!draft.trim()} onClick={() => submitComment(index)}>添加（Ctrl+Enter）</button>
               </div>
             </div>
           ) : null}

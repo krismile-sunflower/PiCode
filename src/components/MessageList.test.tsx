@@ -108,9 +108,9 @@ describe('MessageList', () => {
 
     const { container } = render(<MessageList timeline={timeline} streaming={false} />);
 
-    expect(container.querySelector('.tool-card-body')).not.toHaveClass('expanded');
+    expect(container.querySelector('[data-expanded="false"]')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /bash/ }));
-    expect(container.querySelector('.tool-card-body')).toHaveClass('expanded');
+    expect(container.querySelector('[data-expanded="true"]')).not.toBeNull();
     expect(screen.getAllByText('pwd && ls')).toHaveLength(2);
     expect(screen.getByText(/README\.md/)).toBeVisible();
   });

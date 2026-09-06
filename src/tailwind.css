@@ -2,19 +2,10 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "katex/dist/katex.min.css" layer(base);
-@import "./styles/content.css" layer(components);
 @import "./styles/tokens.css" layer(components);
-@import "./styles/shell.css" layer(components);
-@import "./styles/sidebar.css" layer(components);
-@import "./styles/header.css" layer(components);
-@import "./styles/panes.css" layer(components);
-@import "./styles/chat.css" layer(components);
-@import "./styles/file-panel.css" layer(components);
-@import "./styles/projects.css" layer(components);
-@import "./styles/overlays.css" layer(components);
-@import "./styles/plan.css" layer(components);
-@import "./styles/signal.css" layer(components);
-@import "./styles/diff-review.css" layer(components);
+@import "./styles/ui.css" layer(components);
+@import "./styles/app-state.css" layer(components);
+@import "./styles/content-renderer.css" layer(components);
 
 @layer base {
   * { @apply m-0 box-border p-0; }
@@ -29,7 +20,9 @@
   }
   h1, h2, h3, p, .hint, .message-content { @apply text-pretty; }
   button, input, textarea { font: inherit; }
-  button { @apply cursor-pointer appearance-none; }
+  /* No preflight is loaded: without this reset, buttons keep the UA's default
+     1px border and face color (e.g. group headers in the session sidebar). */
+  button { @apply cursor-pointer appearance-none border-0 bg-transparent; }
   button:disabled { @apply cursor-not-allowed; }
   kbd {
     @apply inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border border-line bg-glass px-[5px] py-0 font-mono text-[10px] leading-none text-dim;
@@ -51,13 +44,6 @@
   *::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
   *::-webkit-scrollbar-track,
   *::-webkit-scrollbar-corner { background: transparent; }
-  .pill,
-  .message-usage,
-  .usage-table,
-  .context-legend-value,
-  .context-viz-footer,
-  .project-count,
-  .task-metrics strong { font-variant-numeric: tabular-nums; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: .01ms !important;
@@ -123,7 +109,28 @@
 
   --ease-workbench: var(--ease);
   --ease-spring: var(--spring);
+
+  /* App-shell responsive breakpoints used by the migrated layout utilities. */
+  --breakpoint-compact: 720px;
+  --breakpoint-narrow: 960px;
+  --breakpoint-wide: 1100px;
 }
 
 @custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
 @custom-variant app-dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Animation keyframes referenced by `animate-[...]` utilities in markup. */
+@keyframes paletteEnter { from { opacity: 0; transform: translate(-50%, -8px) scale(.985); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes toastEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes workbenchPulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes workbenchShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes contextMenuEnter { from { opacity: 0; transform: translateY(-3px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes workbenchSpin { to { transform: rotate(360deg); } }
+@keyframes contentBlink { 50% { opacity: 0; } }
+@keyframes messageEnter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes subagent-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); } }
+@keyframes contentSpin { to { transform: rotate(360deg); } }
+@keyframes attachment-shimmer { to { background-position: -240% 0; } }
