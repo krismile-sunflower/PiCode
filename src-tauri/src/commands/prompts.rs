@@ -46,6 +46,8 @@ pub struct PiPromptTemplate {
     /// Where the template came from, for display (package name, settings entry…).
     pub origin: String,
     pub editable: bool,
+    /// Frontmatter `optimize: true`: the body doubles as the AI input-optimizer instruction.
+    pub optimize: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -76,6 +78,9 @@ pub struct SavePiPromptRequest {
     pub project_path: Option<String>,
     /// Set when renaming an existing template so the old file is removed.
     pub original_path: Option<String>,
+    /// When set, the body is also offered as an AI input-optimizer instruction.
+    #[serde(default)]
+    pub optimize: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -144,6 +149,9 @@ fn render_template(request: &SavePiPromptRequest) -> String {
     }
     if let Some(hint) = trimmed(request.argument_hint.as_deref()) {
         frontmatter.push(format!("argument-hint: {}", yaml_scalar(&hint)));
+    }
+    if request.optimize {
+        frontmatter.push("optimize: true".to_string());
     }
     let body = request.body.replace("\r\n", "\n");
     let body = body.trim_end();
@@ -567,6 +575,7 @@ fn read_template(
         scope: scope.to_string(),
         origin: origin.to_string(),
         editable,
+        optimize: frontmatter_flag(&frontmatter, "optimize"),
     })
 }
 
@@ -609,6 +618,13 @@ fn frontmatter_value(frontmatter: &str, key: &str) -> Option<String> {
         return trimmed(Some(&value));
     }
     None
+}
+
+/// Reads a boolean frontmatter flag (`true`/`yes`/`on`/`1`, case-insensitive).
+fn frontmatter_flag(frontmatter: &str, key: &str) -> bool {
+    frontmatter_value(frontmatter, key)
+        .map(|value| value.to_ascii_lowercase())
+        .is_some_and(|value| matches!(value.as_str(), "true" | "yes" | "on" | "1"))
 }
 
 /// Pi falls back to the first non-empty body line, truncated at 60 characters.
@@ -673,6 +689,7 @@ mod tests {
             body: "Review `git diff --cached`.\n".into(),
             project_path: None,
             original_path: None,
+            optimize: false,
         });
         let (frontmatter, body) = split_frontmatter(&rendered);
         assert_eq!(
@@ -681,6 +698,37 @@ mod tests {
         );
         assert_eq!(frontmatter_value(&frontmatter, "argument-hint").as_deref(), Some("<PR-URL>"));
         assert_eq!(body, "Review `git diff --cached`.");
+    }
+
+    #[test]
+    fn optimize_flag_round_trips_through_frontmatter() {
+        let rendered = render_template(&SavePiPromptRequest {
+            scope: "user".into(),
+            name: "polish".into(),
+            description: None,
+            argument_hint: None,
+            body: "精简改写，不要扩写：{{input}}".into(),
+            project_path: None,
+            original_path: None,
+            optimize: true,
+        });
+        let (frontmatter, body) = split_frontmatter(&rendered);
+        assert!(frontmatter_flag(&frontmatter, "optimize"));
+        assert_eq!(body, "精简改写，不要扩写：{{input}}");
+
+        // Plain templates keep the flag off.
+        let plain = render_template(&SavePiPromptRequest {
+            scope: "user".into(),
+            name: "ship".into(),
+            description: None,
+            argument_hint: None,
+            body: "Ship it.".into(),
+            project_path: None,
+            original_path: None,
+            optimize: false,
+        });
+        let (frontmatter, _) = split_frontmatter(&plain);
+        assert!(!frontmatter_flag(&frontmatter, "optimize"));
     }
 
     #[test]
@@ -706,6 +754,7 @@ mod tests {
                 body: "Review `git diff --cached`.".into(),
                 project_path: None,
                 original_path: None,
+                optimize: false,
             }),
         )
         .unwrap();

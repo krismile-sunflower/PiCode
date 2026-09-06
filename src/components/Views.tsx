@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { confirmDialog } from './ConfirmDialog';
 import { DiffView } from './DiffView';
+import { DEFAULT_OPTIMIZE_INSTRUCTION, readOptimizeTemplatePref } from '../lib/prompt-optimizer';
 import { DEFAULT_REASONING_PROFILE, migrateReasoningConfig, PI_REASONING_LEVELS, REASONING_UI_LABELS } from '../lib/reasoning';
 import { Select } from './Select';
 import { THINKING_LEVELS, thinkingLevelLabel } from '../lib/thinking';
@@ -1881,7 +1882,7 @@ export function PackagesView({ snapshot }: { snapshot: AppSnapshot }) {
   );
 }
 
-const emptyPromptDraft = { scope: 'user' as 'user' | 'project', name: '', description: '', argumentHint: '', body: '', originalPath: '' };
+const emptyPromptDraft = { scope: 'user' as 'user' | 'project', name: '', description: '', argumentHint: '', body: '', optimize: false, originalPath: '' };
 
 function scopeLabel(scope: string): string {
   return ({ user: '全局', project: '项目', package: '软件包' } as Record<string, string>)[scope] || scope;
@@ -1890,11 +1891,13 @@ function scopeLabel(scope: string): string {
 function PromptRow({
   template,
   busy,
+  inUse,
   onEdit,
   onDelete,
 }: {
   template: PiPromptTemplate;
   busy: boolean;
+  inUse?: boolean;
   onEdit(): void;
   onDelete(): void;
 }) {
@@ -1903,6 +1906,7 @@ function PromptRow({
       <div className="catalog-main">
         <div className="catalog-title-row">
           <div className="catalog-name font-mono text-[12px]">/{template.name}</div>
+          {inUse ? <span className="flex-none font-mono text-[10px] text-accent-text">使用中</span> : null}
           {template.argumentHint ? <span className="flex-none font-mono text-[10px] text-accent-text">{template.argumentHint}</span> : null}
           <span className={`catalog-tag${template.editable ? '' : ' warn'}`}>{scopeLabel(template.scope)}</span>
         </div>
@@ -1931,23 +1935,32 @@ function PromptRow({
   );
 }
 
-function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
+function PromptsView({ snapshot, mode = 'prompts' }: { snapshot: AppSnapshot; mode?: 'prompts' | 'optimize' }) {
   const [draft, setDraft] = useState<typeof emptyPromptDraft | null>(null);
   const [readOnlyPath, setReadOnlyPath] = useState('');
   const [query, setQuery] = useState('');
   const templates = snapshot.prompts?.templates || [];
   const projectDir = snapshot.prompts?.projectDir;
-  const visible = templates.filter((template) => {
+  // One catalog, two managers: rewrite instructions live in the dedicated
+  // 「输入优化」 tab, regular /name templates in the general one.
+  const optimizeCount = templates.filter((template) => template.optimize).length;
+  const ownTemplates = mode === 'optimize'
+    ? templates.filter((template) => template.optimize)
+    : templates.filter((template) => !template.optimize);
+  const visible = ownTemplates.filter((template) => {
     const needle = query.trim().toLowerCase();
     return !needle || `${template.name} ${template.description}`.toLowerCase().includes(needle);
   });
+  // The composer remembers the last picked optimizer; surface it in the list.
+  const activeOptimizer = mode === 'optimize' ? readOptimizeTemplatePref() : '';
   // Break the count down so package-provided templates do not look like a bug.
-  const ownCount = templates.filter((template) => template.editable).length;
-  const packageOrigins = new Set(templates.filter((template) => template.scope === 'package').map((template) => template.origin));
+  const ownCount = ownTemplates.filter((template) => template.editable).length;
+  const packageOrigins = new Set(ownTemplates.filter((template) => template.scope === 'package').map((template) => template.origin));
   const promptSummary = [
     `${ownCount} 个自建`,
-    packageOrigins.size ? `${templates.length - ownCount} 个来自软件包（${[...packageOrigins].join('、')}）` : '',
-    '输入 /名称 即可调用',
+    packageOrigins.size ? `${ownTemplates.length - ownCount} 个来自软件包（${[...packageOrigins].join('、')}）` : '',
+    mode === 'optimize' ? '在输入框「优化」按钮旁的菜单中切换使用' : '输入 /名称 即可调用',
+    mode === 'prompts' && optimizeCount ? `${optimizeCount} 个输入优化模板在「输入优化」页管理` : '',
   ].filter(Boolean).join(' · ');
 
   const openEditor = (template?: PiPromptTemplate) => {
@@ -1960,9 +1973,10 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
             description: template.description,
             argumentHint: template.argumentHint || '',
             body: template.body,
+            optimize: template.optimize === true,
             originalPath: template.editable ? template.filePath : '',
           }
-        : { ...emptyPromptDraft },
+        : { ...emptyPromptDraft, optimize: mode === 'optimize' },
     );
   };
 
@@ -1974,6 +1988,7 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
       description: draft.description,
       argumentHint: draft.argumentHint,
       body: draft.body,
+      optimize: mode === 'optimize' || draft.optimize,
       originalPath: draft.originalPath,
     });
     if (saved) setDraft(null);
@@ -1985,11 +2000,13 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
       <section className="pane-section">
         <div className="pane-section-head">
           <div>
-            <div className="pane-section-title">{readOnly ? `查看 /${draft.name}` : draft.originalPath ? `编辑 /${draft.name}` : '新建提示模板'}</div>
+            <div className="pane-section-title">{readOnly ? `查看 /${draft.name}` : draft.originalPath ? `编辑 /${draft.name}` : mode === 'optimize' ? '新建输入优化模板' : '新建提示模板'}</div>
             <p className="pane-section-note">
               {readOnly
                 ? `该模板来自${scopeLabel(templates.find((item) => item.filePath === readOnlyPath)?.scope || 'package')}，只能查看。`
-                : '文件名即命令名。正文支持 $1、$@/$ARGUMENTS、${1:-默认值} 与 ${@:2} 等参数占位符。'}
+                : mode === 'optimize'
+                  ? '正文即改写指令：正文中的 {{input}} 会被替换为输入框当前内容，未使用时输入会自动附在正文之后。'
+                  : '文件名即命令名。正文支持 $1、$@/$ARGUMENTS、${1:-默认值} 与 ${@:2} 等参数占位符。'}
             </p>
           </div>
           <button className="settings-action-btn" type="button" onClick={() => setDraft(null)}>返回列表</button>
@@ -2033,17 +2050,19 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
               onChange={(event) => setDraft({ ...draft, description: event.target.value })}
             />
           </label>
-          <label className="prompt-field">
-            <span>参数提示</span>
-            <input
-              className="settings-text-input font-mono disabled:cursor-default disabled:opacity-[0.68]"
-              value={draft.argumentHint}
-              disabled={readOnly}
-              placeholder="<必填参数> [可选参数]"
-              onChange={(event) => setDraft({ ...draft, argumentHint: event.target.value })}
-            />
-            <small>显示在斜杠命令补全里，尖括号表示必填、方括号表示可选。</small>
-          </label>
+          {mode === 'prompts' ? (
+            <label className="prompt-field">
+              <span>参数提示</span>
+              <input
+                className="settings-text-input font-mono disabled:cursor-default disabled:opacity-[0.68]"
+                value={draft.argumentHint}
+                disabled={readOnly}
+                placeholder="<必填参数> [可选参数]"
+                onChange={(event) => setDraft({ ...draft, argumentHint: event.target.value })}
+              />
+              <small>显示在斜杠命令补全里，尖括号表示必填、方括号表示可选。</small>
+            </label>
+          ) : null}
           <label className="prompt-field wide">
             <span>正文</span>
             <textarea
@@ -2051,7 +2070,9 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
               value={draft.body}
               disabled={readOnly}
               rows={14}
-              placeholder={'审查已暂存的改动（`git diff --cached`），重点关注：\n- 逻辑错误\n- 安全问题'}
+              placeholder={mode === 'optimize'
+                ? '精简改写下述输入，保持原意、不要扩写：\n{{input}}'
+                : '审查已暂存的改动（`git diff --cached`），重点关注：\n- 逻辑错误\n- 安全问题'}
               onChange={(event) => setDraft({ ...draft, body: event.target.value })}
             />
           </label>
@@ -2064,7 +2085,7 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
               type="button"
               disabled={!draft.name.trim() || !draft.body.trim() || snapshot.promptSaving}
               onClick={() => void save()}
-            >{snapshot.promptSaving ? '正在保存…' : '保存模板'}</button>
+            >{snapshot.promptSaving ? '正在保存…' : mode === 'optimize' ? '保存优化模板' : '保存模板'}</button>
           </div>
         ) : null}
       </section>
@@ -2077,28 +2098,46 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
         <div className="catalog-toolbar">
           <div className="catalog-search-wrap">
             <Search size={14} />
-            <input type="search" className="catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索提示模板" aria-label="搜索提示模板" />
+            <input type="search" className="catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={mode === 'optimize' ? '搜索优化模板' : '搜索提示模板'} aria-label={mode === 'optimize' ? '搜索优化模板' : '搜索提示模板'} />
           </div>
           <button className="catalog-icon-btn" type="button" title="刷新模板" aria-label="刷新模板" disabled={snapshot.promptsLoading} onClick={() => void controller.loadPrompts(true)}>
             <RotateCw size={14} />
           </button>
-          <button className="catalog-action primary" type="button" onClick={() => openEditor()}>新建模板</button>
+          <button className="catalog-action primary" type="button" onClick={() => openEditor()}>{mode === 'optimize' ? '新建优化模板' : '新建模板'}</button>
         </div>
         <div className={`catalog-status${snapshot.promptError ? ' error' : ''}`}>
           {snapshot.promptError || (snapshot.promptsLoading ? '正在加载提示模板…' : promptSummary)}
         </div>
         <div className="catalog-list">
+          {mode === 'optimize' ? (
+            <div className="catalog-row">
+              <div className="catalog-main">
+                <div className="catalog-title-row">
+                  <div className="catalog-name font-mono text-[12px]">默认优化</div>
+                  {!activeOptimizer ? <span className="flex-none font-mono text-[10px] text-accent-text">使用中</span> : null}
+                  <span className="catalog-tag warn">内置</span>
+                </div>
+                <div className="catalog-description">{DEFAULT_OPTIMIZE_INSTRUCTION}</div>
+                <div className="catalog-meta">
+                  <span className="catalog-meta-item">未选择自定义模板时使用；内置指令随应用提供，不可编辑或删除。</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {visible.map((template) => (
             <PromptRow
               key={template.filePath}
               template={template}
               busy={snapshot.promptSaving}
+              inUse={activeOptimizer === template.name}
               onEdit={() => openEditor(template)}
               onDelete={() => void controller.deletePrompt(template.filePath)}
             />
           ))}
           {!snapshot.promptsLoading && visible.length === 0 ? (
-            <div className="catalog-empty">{query.trim() ? '没有匹配的提示模板。' : '还没有提示模板。新建一个，之后在输入框里用 /名称 调用。'}</div>
+            <div className="catalog-empty">{query.trim()
+              ? (mode === 'optimize' ? '没有匹配的优化模板。' : '没有匹配的提示模板。')
+              : (mode === 'optimize' ? '还没有自定义优化模板。新建一个，之后在输入框「优化」按钮旁的菜单中选择。' : '还没有提示模板。新建一个，之后在输入框里用 /名称 调用。')}</div>
           ) : null}
         </div>
       </section>
@@ -2127,14 +2166,19 @@ function PromptsView({ snapshot }: { snapshot: AppSnapshot }) {
 }
 
 export function CustomizationView({ snapshot }: { snapshot: AppSnapshot }) {
-  const [tab, setTab] = useState<'extensions' | 'packages' | 'prompts' | 'automations'>('extensions');
+  // A composer menu item can request this pane with the optimizer tab up;
+  // consumePendingCustomizationTab() is that one-shot request (or null).
+  const [tab, setTab] = useState<'extensions' | 'packages' | 'prompts' | 'optimize' | 'automations'>(() => controller.consumePendingCustomizationTab() || 'extensions');
   const extensionCount = snapshot.extensions?.extensions.length || 0;
   const packageCount = snapshot.packages?.packages.length || 0;
-  const promptCount = snapshot.prompts?.templates.length || 0;
+  const promptTemplates = snapshot.prompts?.templates || [];
+  const promptCount = promptTemplates.filter((template) => !template.optimize).length;
+  const optimizeCount = promptTemplates.filter((template) => template.optimize).length;
   const tabs = [
     { id: 'extensions' as const, label: '扩展', count: extensionCount, subtitle: '为 Pi 添加独立扩展，安装后在下次会话生效。' },
     { id: 'packages' as const, label: '软件包', count: packageCount, subtitle: '安装包含扩展、技能、提示模板和主题的软件包。' },
     { id: 'prompts' as const, label: '提示模板', count: promptCount, subtitle: '把常用提示存成 Markdown 模板，在输入框里用 /名称 调用。' },
+    { id: 'optimize' as const, label: '输入优化', count: optimizeCount, subtitle: '管理输入框「AI 优化输入」的改写指令模板，正文支持 {{input}} 占位符。' },
     { id: 'automations' as const, label: '定时任务', count: snapshot.automations.length, subtitle: '让 Pi 按计划自己跑：每日简报、依赖检查、CI 失败分析。结果写进对应项目的会话。' },
   ];
   const current = tabs.find((item) => item.id === tab) || tabs[0];
@@ -2170,6 +2214,7 @@ export function CustomizationView({ snapshot }: { snapshot: AppSnapshot }) {
           {tab === 'extensions' ? <ExtensionsView snapshot={snapshot} /> : null}
           {tab === 'packages' ? <PackagesView snapshot={snapshot} /> : null}
           {tab === 'prompts' ? <PromptsView snapshot={snapshot} /> : null}
+          {tab === 'optimize' ? <PromptsView snapshot={snapshot} mode="optimize" /> : null}
           {tab === 'automations' ? <AutomationsView snapshot={snapshot} /> : null}
         </div>
       </div>

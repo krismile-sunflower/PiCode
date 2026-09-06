@@ -145,6 +145,7 @@ pub fn run() {
             commands::models::set_pi_model_defaults,
             commands::models::fetch_provider_models,
             commands::models::test_provider_model,
+            commands::models::complete_prompt_text,
             commands::models::open_models_config,
             commands::models::restore_models_config,
             commands::sidecar::get_pi_runtime_info,

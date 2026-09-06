@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   AppSnapshot,
   ExtensionUiRequest,
@@ -35,11 +36,13 @@ import {
   matchSlashCommand,
 } from '../lib/slash-commands';
 import { controller } from '../app/controller';
+import { notify } from '../app/controller-contracts';
 import { invoke } from '@tauri-apps/api/core';
 import { apiJson, isDesktop } from '../lib/desktop';
 import { usageByModel, usageCsv } from '../lib/usage-report';
 import { applyMention, expandMentions, matchMention, relativeMention, type MentionMatch } from '../lib/mentions';
 import { pushInputHistory, readDraft, readInputHistory, writeDraft, writeInputHistory } from '../lib/composer-history';
+import { readOptimizeTemplatePref, writeOptimizeTemplatePref } from '../lib/prompt-optimizer';
 import { Select } from './Select';
 import { THINKING_LEVELS, thinkingLevelLabel } from '../lib/thinking';
 import {
@@ -62,6 +65,7 @@ import {
   Info,
   Keyboard,
   LayoutGrid,
+  LoaderCircle,
   Menu,
   Mic,
   PanelLeft,
@@ -71,6 +75,7 @@ import {
   Settings,
   ShieldCheck,
   Shrink,
+  Sparkles,
   Square,
   TriangleAlert,
   UnfoldVertical,
@@ -409,6 +414,10 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
   const [attachingCount, setAttachingCount] = useState(0);
   const [zoomedImage, setZoomedImage] = useState<ImageAttachment | null>(null);
   const [recording, setRecording] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeMenuOpen, setOptimizeMenuOpen] = useState(false);
+  const [optimizeMenuRect, setOptimizeMenuRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [optimizeTemplateName, setOptimizeTemplateName] = useState(() => readOptimizeTemplatePref());
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
   const [mention, setMention] = useState<MentionMatch | null>(null);
@@ -417,6 +426,8 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const slashListRef = useRef<HTMLDivElement>(null);
+  const optimizeRef = useRef<HTMLDivElement>(null);
+  const optimizeMenuRef = useRef<HTMLDivElement>(null);
   const planReadOnly = snapshot.plan.phase === 'plan' || snapshot.plan.phase === 'review';
   const knownFiles = useRef(new Set<string>());
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -428,6 +439,13 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
     // Show the full filtered list (no hard cap) so every command remains discoverable.
     return fuzzyFilterCommands(slashCommands, slashMatch.query);
   }, [slashCommands, slashMatch]);
+
+  // Templates flagged `optimize: true` double as input-optimizer instructions.
+  const optimizeTemplates = useMemo(
+    () => (snapshot.prompts?.templates || []).filter((template) => template.optimize && template.body.trim()),
+    [snapshot.prompts],
+  );
+  const activeOptimizeTemplate = optimizeTemplates.find((template) => template.name === optimizeTemplateName) || null;
 
   useEffect(() => {
     if (slashMatch && slashResults.length) {
@@ -473,6 +491,39 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
     const active = list.querySelector<HTMLElement>(`[data-slash-index="${slashIndex}"]`);
     active?.scrollIntoView({ block: 'nearest' });
   }, [slashIndex, slashOpen, slashResults.length]);
+
+  // The optimize menu lists templates flagged `optimize`; warm the catalog on
+  // mount so the first open already shows them (loadPrompts caches its result).
+  useEffect(() => {
+    if (isDesktop) void controller.loadPrompts();
+  }, []);
+
+  useEffect(() => {
+    if (!optimizeMenuOpen) return;
+    const close = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!optimizeRef.current?.contains(target) && !optimizeMenuRef.current?.contains(target)) setOptimizeMenuOpen(false);
+    };
+    // The menu is fixed-positioned; any scroll outside it would detach it
+    // from the trigger, so close instead of tracking repositioning.
+    const onScroll = (event: Event) => {
+      if (optimizeMenuRef.current?.contains(event.target as Node)) return;
+      setOptimizeMenuOpen(false);
+    };
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOptimizeMenuOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+      document.removeEventListener('keydown', key);
+    };
+  }, [optimizeMenuOpen]);
 
   useEffect(() => {
     // Keep the active index in range if the filtered list shrinks.
@@ -739,12 +790,117 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
     }
   };
 
+  // One-shot AI rewrite of the current draft. Errors are toasted by the
+  // controller, so an empty result means "already reported" and the draft
+  // stays untouched for manual editing.
+  const openOptimizeMenu = () => {
+    const rect = optimizeRef.current?.getBoundingClientRect();
+    setOptimizeMenuRect(rect ? { left: rect.left, top: rect.top, width: rect.width } : null);
+    setOptimizeMenuOpen(true);
+  };
+
+  const pickOptimizeTemplate = (name: string) => {
+    setOptimizeTemplateName(name);
+    writeOptimizeTemplatePref(name);
+    setOptimizeMenuOpen(false);
+  };
+
+  const optimizeMenuItemClass = (active: boolean) =>
+    `flex w-full items-center justify-between gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[11px] appearance-none cursor-pointer${active ? ' bg-accent-subtle text-accent-text' : ' text-secondary hover:bg-glass-hover hover:text-primary'}`;
+
+  const optimizeDraft = async () => {
+    const source = text.trim();
+    if (!source || optimizing) return;
+    setOptimizing(true);
+    try {
+      const optimized = await controller.optimizePromptText(source, activeOptimizeTemplate?.body);
+      if (!optimized) return;
+      // The wait can be seconds; if the draft moved on meanwhile, don't
+      // clobber the user's newer edits with a rewrite of stale text.
+      const liveText = textareaRef.current?.value ?? text;
+      if (liveText.trim() !== source) {
+        notify('输入已优化', '检测到输入框内容已变化，未覆盖你的修改。', 'info');
+        return;
+      }
+      setText(optimized);
+      notify('输入已优化', 'AI 已重写输入框内容，可继续编辑后再发送。', 'success');
+      window.requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        textarea?.focus();
+        textarea?.setSelectionRange(optimized.length, optimized.length);
+      });
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
   const sourceLabel = (source?: string) => {
     if (source === 'extension') return '扩展';
     if (source === 'prompt') return '模板';
     if (source === 'skill') return '技能';
     return '内置';
   };
+
+  // Rendered through a portal: the toolbar sits inside an overflow-hidden
+  // card, which would clip an absolutely positioned menu.
+  const optimizeMenu = optimizeMenuOpen && optimizeMenuRect
+    ? createPortal(
+        <div
+          ref={optimizeMenuRef}
+          role="menu"
+          aria-label="选择优化方式"
+          className="fixed z-[500] max-h-[320px] w-[260px] overflow-auto rounded-[10px] border border-line bg-elevated p-1 shadow-lg"
+          style={{
+            right: window.innerWidth - optimizeMenuRect.left - optimizeMenuRect.width,
+            bottom: window.innerHeight - optimizeMenuRect.top + 6,
+          }}
+        >
+          <div className="px-2 pb-1 pt-1.5 text-[9px] font-bold tracking-[0.06em] text-dim uppercase">AI 优化输入</div>
+          <button
+            className={optimizeMenuItemClass(!activeOptimizeTemplate)}
+            type="button"
+            role="menuitemradio"
+            aria-checked={!activeOptimizeTemplate}
+            onClick={() => pickOptimizeTemplate('')}
+          >
+            <span className="min-w-0 truncate">默认优化</span>
+            {!activeOptimizeTemplate ? <Check size={12} className="flex-none text-accent-text" /> : null}
+          </button>
+          {optimizeTemplates.map((template) => (
+            <button
+              key={template.name}
+              className={optimizeMenuItemClass(activeOptimizeTemplate?.name === template.name)}
+              type="button"
+              role="menuitemradio"
+              aria-checked={activeOptimizeTemplate?.name === template.name}
+              title={template.description || template.body}
+              onClick={() => pickOptimizeTemplate(template.name)}
+            >
+              <span className="min-w-0 truncate">/{template.name}</span>
+              {activeOptimizeTemplate?.name === template.name ? <Check size={12} className="flex-none text-accent-text" /> : null}
+            </button>
+          ))}
+          {!optimizeTemplates.length ? (
+            <div className="px-2 py-1.5 text-[10px] leading-[1.5] text-dim">还没有自定义优化方式。在「定制 - 输入优化」新建优化模板即可添加。</div>
+          ) : null}
+          <div className="mt-1 border-t border-t-line pt-1">
+            <button
+              className="flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[11px] text-secondary cursor-pointer appearance-none hover:bg-glass-hover hover:text-primary"
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOptimizeMenuOpen(false);
+                controller.openOptimizeTemplates();
+              }}
+            >
+              <Settings size={12} className="flex-none" />
+              <span className="min-w-0 truncate">管理优化模板</span>
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
 
   return (
     <div className="relative z-30 mt-0.5 flex-none overflow-visible border-0 border-t border-t-line bg-canvas pt-[14px] pb-[15px] px-[max(20px,calc((100%_-_var(--composer-max-width))/2))] [backdrop-filter:none] max-compact:p-2.5">
@@ -976,12 +1132,39 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
               <button className="static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-md border border-transparent bg-transparent px-2 text-[10px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden" type="button" title="添加图片" aria-label="添加图片" onClick={() => imageInputRef.current?.click()}><ImageIcon size={16} /><span>图片</span></button>
               <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={(event: ChangeEvent<HTMLInputElement>) => { if (event.target.files) void addFiles(event.target.files); event.target.value = ''; }} />
               {recognitionRef.current || window.SpeechRecognition || window.webkitSpeechRecognition ? <button className={`static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-md border border-transparent bg-transparent px-2 text-[10px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden${recording ? ' text-error! animate-[workbenchPulse_1.4s_ease-in-out_infinite]' : ''}`} type="button" title={recording ? '停止录音' : '语音输入'} onClick={toggleRecording}><Mic size={16} /><span>语音</span></button> : null}
+              <div className="relative ml-auto flex-none" ref={optimizeRef}>
+                <div className="inline-flex items-center">
+                  <button
+                    className={`static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-l-md border border-transparent bg-transparent pr-1 pl-2 text-[10px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary disabled:cursor-not-allowed disabled:opacity-[0.42] disabled:hover:border-transparent disabled:hover:bg-transparent max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden${optimizing ? ' text-accent-text!' : ''}`}
+                    type="button"
+                    title={optimizing ? '正在优化输入…' : activeOptimizeTemplate ? `AI 优化输入 · /${activeOptimizeTemplate.name}` : 'AI 优化输入'}
+                    aria-label={activeOptimizeTemplate ? `AI 优化输入（/${activeOptimizeTemplate.name}）` : 'AI 优化输入'}
+                    aria-busy={optimizing}
+                    disabled={optimizing || !text.trim()}
+                    onClick={() => void optimizeDraft()}
+                  >
+                    {optimizing ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Sparkles size={16} aria-hidden="true" />}
+                    <span className="max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap">{activeOptimizeTemplate ? activeOptimizeTemplate.name : '优化'}</span>
+                  </button>
+                  <button
+                    className="static inline-flex h-[29px] w-[18px] flex-none items-center justify-center rounded-r-md border border-transparent bg-transparent text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary"
+                    type="button"
+                    title="选择优化方式"
+                    aria-label="选择优化方式"
+                    aria-haspopup="menu"
+                    aria-expanded={optimizeMenuOpen}
+                    onClick={() => (optimizeMenuOpen ? setOptimizeMenuOpen(false) : openOptimizeMenu())}
+                  >
+                    <ChevronDown size={11} className={`flex-none transition-transform duration-[var(--duration-fast)]${optimizeMenuOpen ? ' rotate-180' : ''}`} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              {optimizeMenu}
               <Select
                 variant="ghost"
                 align="end"
                 ariaLabel="思考强度"
                 value={snapshot.thinkingLevel}
-                className="ml-auto"
                 leading={<Brain size={14} />}
                 options={THINKING_LEVELS.map((level) => ({ value: level, label: thinkingLevelLabel(level) }))}
                 onChange={(level) => void controller.setThinkingLevel(level)}

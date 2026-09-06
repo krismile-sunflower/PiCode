@@ -311,6 +311,8 @@ export interface PiPromptTemplate {
   /** Package name for package-provided templates. */
   origin: string;
   editable: boolean;
+  /** Frontmatter `optimize: true`: the body doubles as the AI input-optimizer instruction. */
+  optimize?: boolean;
 }
 
 export interface PiPromptCatalog {

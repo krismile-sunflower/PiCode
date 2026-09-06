@@ -66,6 +66,7 @@ import {
 import { mergeSlashCommands } from '../lib/slash-commands';
 import { subagentDetailsOf } from '../lib/subagents';
 import { isInteractiveExtensionRequest } from '../lib/extension-ui';
+import { buildOptimizePrompt } from '../lib/prompt-optimizer';
 import { appStore } from './store';
 import {
   assistantError,
@@ -129,6 +130,8 @@ export class PiStudioController {
   private currentStreamingThinking = '';
   private selectedSessionLiveOnly = false;
   private pendingPrompts: PendingPrompt[] = [];
+  /** One-shot tab hint consumed by CustomizationView on mount. */
+  private pendingCustomizationTab: 'optimize' | null = null;
   private sessionRefreshTimer: number | null = null;
   private pollTimer: number | null = null;
   private unlisten: UnlistenFn[] = [];
@@ -209,6 +212,23 @@ export class PiStudioController {
   returnToChat(): void {
     if (isDesktop && !appStore.getSnapshot().hasActivePiSession) this.setView('projects');
     else this.setView('chat');
+  }
+
+  /**
+   * Jump to the customization view with the input-optimizer manager
+   * preselected. The pane keeps its tab in local state, so the request rides
+   * along as a one-shot pending value that CustomizationView consumes on
+   * mount instead of racing a window event.
+   */
+  openOptimizeTemplates(): void {
+    this.pendingCustomizationTab = 'optimize';
+    this.setView('customization');
+  }
+
+  consumePendingCustomizationTab(): 'optimize' | null {
+    const tab = this.pendingCustomizationTab;
+    this.pendingCustomizationTab = null;
+    return tab;
   }
 
   async loadProjects(): Promise<void> {
@@ -1015,6 +1035,39 @@ export class PiStudioController {
     const result = await this.rpcCommand({ type: 'set_thinking_level', level });
     if (!result.success) return;
     appStore.update({ thinkingLevel: level });
+  }
+
+  /**
+   * Rewrite a draft prompt with the current model via a one-off completion.
+   * Resolves entirely on the Rust side from models.json, so no session
+   * traffic is polluted and the transcript stays untouched. An optional
+   * `instruction` (the body of a user template flagged `optimize: true`)
+   * replaces the built-in wording.
+   */
+  async optimizePromptText(text: string, instruction?: string): Promise<string> {
+    if (!isDesktop) {
+      notify('桌面端功能', 'AI 优化输入仅在桌面应用中可用。', 'warning');
+      return '';
+    }
+    const state = appStore.getSnapshot();
+    const provider = state.currentModelProvider || state.defaultProvider || '';
+    const modelId = state.currentModelId || state.defaultModel || '';
+    if (!provider || !modelId) {
+      notify('无法优化输入', '请先在设置中选择模型。', 'warning');
+      return '';
+    }
+    // `instruction` is the body of a user template flagged `optimize: true`;
+    // the builder handles the `{{input}}` placeholder and default wording.
+    const prompt = buildOptimizePrompt(text, instruction);
+    try {
+      const result = await invoke<{ output?: string }>('complete_prompt_text', {
+        request: { provider, modelId, prompt, thinkingLevel: state.thinkingLevel },
+      });
+      return (result.output || '').trim();
+    } catch (error) {
+      notify('优化输入失败', String(error), 'error');
+      return '';
+    }
   }
 
   async loadSettings(): Promise<void> {
@@ -1874,6 +1927,7 @@ export class PiStudioController {
     description?: string;
     argumentHint?: string;
     body: string;
+    optimize?: boolean;
     originalPath?: string;
   }): Promise<boolean> {
     if (!isDesktop || appStore.getSnapshot().promptSaving) return false;

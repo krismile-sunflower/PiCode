@@ -341,16 +341,117 @@ pub async fn test_provider_model(
         .provider
         .as_object()
         .ok_or_else(|| "Provider configuration must be an object".to_string())?;
+    let model_id = request.model_id.trim();
+    if model_id.is_empty() {
+        return Err("请先填写模型 ID。".into());
+    }
+    let reasoning = resolve_reasoning_value(
+        provider,
+        request.reasoning_profile.as_deref(),
+        request.thinking_level_map.as_ref(),
+        &request.thinking_level,
+    )?;
+    let output = run_provider_completion(
+        provider,
+        model_id,
+        "请只回复：连接成功",
+        reasoning.as_deref(),
+        32,
+        "模型测试",
+    )
+    .await?;
+    Ok(TestProviderModelResponse { output })
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletePromptTextRequest {
+    pub provider: String,
+    pub model_id: String,
+    pub prompt: String,
+    #[serde(default = "default_thinking_level")]
+    pub thinking_level: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletePromptTextResponse {
+    pub output: String,
+}
+
+/// One-off completion against a configured provider/model, used for
+/// utilities like AI prompt polishing. Resolves the provider entry from
+/// models.json so the frontend only needs names, not the full config.
+#[tauri::command]
+pub async fn complete_prompt_text(
+    request: CompletePromptTextRequest,
+) -> Result<CompletePromptTextResponse, String> {
+    let provider_name = request.provider.trim();
+    let model_id = request.model_id.trim();
+    if provider_name.is_empty() || model_id.is_empty() {
+        return Err("请先选择模型。".into());
+    }
+    let path = models_json_path()?;
+    if !path.exists() {
+        return Err("未找到 models.json，请先在设置中配置模型。".into());
+    }
+    let raw = fs::read_to_string(&path)
+        .map_err(|err| format!("Failed to read models.json at {}: {err}", path.display()))?;
+    let config = serde_json::from_str::<Value>(&raw)
+        .map_err(|err| format!("Failed to parse models.json at {}: {err}", path.display()))?;
+    let provider = config
+        .get("providers")
+        .and_then(|providers| providers.get(provider_name))
+        .and_then(Value::as_object)
+        .ok_or_else(|| format!("未找到供应商 {provider_name} 的配置。"))?;
+    let model_entry = provider
+        .get("models")
+        .and_then(Value::as_array)
+        .and_then(|models| {
+            models
+                .iter()
+                .find(|model| model.get("id").and_then(Value::as_str) == Some(model_id))
+        });
+    let reasoning_profile = model_entry
+        .and_then(|model| model.get("reasoningProfile"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let thinking_level_map = model_entry
+        .and_then(|model| model.get("thinkingLevelMap"))
+        .cloned();
+    let reasoning = resolve_reasoning_value(
+        provider,
+        reasoning_profile.as_deref(),
+        thinking_level_map.as_ref(),
+        &request.thinking_level,
+    )?;
+    let output = run_provider_completion(
+        provider,
+        model_id,
+        &request.prompt,
+        reasoning.as_deref(),
+        2048,
+        "优化输入",
+    )
+    .await?;
+    Ok(CompletePromptTextResponse { output })
+}
+
+/// Shared single-shot completion used by the model test and prompt polishing.
+async fn run_provider_completion(
+    provider: &Map<String, Value>,
+    model_id: &str,
+    prompt: &str,
+    reasoning: Option<&str>,
+    max_tokens: u32,
+    action_label: &str,
+) -> Result<String, String> {
     let base_url = provider
         .get("baseUrl")
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| "请先填写 Base URL。".to_string())?;
-    let model_id = request.model_id.trim();
-    if model_id.is_empty() {
-        return Err("请先填写模型 ID。".into());
-    }
     let api = provider
         .get("api")
         .and_then(Value::as_str)
@@ -358,23 +459,16 @@ pub async fn test_provider_model(
     ensure_supported_api("current provider", api)?;
     let api_key = resolve_api_key(provider.get("apiKey").and_then(Value::as_str))?;
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60))
         .build()
         .map_err(|err| format!("无法创建请求客户端：{err}"))?;
-    let prompt = "请只回复：连接成功";
     let mut url = Url::parse(base_url).map_err(|err| format!("Base URL 无效：{err}"))?;
     ensure_allowed_endpoint(&url)?;
-    let reasoning = resolve_reasoning_value(
-        provider,
-        request.reasoning_profile.as_deref(),
-        request.thinking_level_map.as_ref(),
-        &request.thinking_level,
-    )?;
     let (http_request, extract): (reqwest::RequestBuilder, fn(&Value) -> Option<String>) = match api
     {
         "openai-completions" => {
             append_path(&mut url, "chat/completions");
-            let payload = build_openai_payload(api, model_id, prompt, reasoning.as_deref());
+            let payload = build_openai_payload(api, model_id, prompt, reasoning);
             let mut call = client.post(url).json(&payload);
             if let Some(key) = api_key.as_deref() {
                 call = call.bearer_auth(key);
@@ -383,7 +477,7 @@ pub async fn test_provider_model(
         }
         "openai-responses" => {
             append_path(&mut url, "responses");
-            let payload = build_openai_payload(api, model_id, prompt, reasoning.as_deref());
+            let payload = build_openai_payload(api, model_id, prompt, reasoning);
             let mut call = client.post(url).json(&payload);
             if let Some(key) = api_key.as_deref() {
                 call = call.bearer_auth(key);
@@ -393,7 +487,7 @@ pub async fn test_provider_model(
         "anthropic-messages" => {
             append_path(&mut url, "messages");
             let mut call = client.post(url).header("anthropic-version", "2023-06-01")
-                .json(&json!({ "model": model_id, "max_tokens": 32, "messages": [{ "role": "user", "content": prompt }] }));
+                .json(&json!({ "model": model_id, "max_tokens": max_tokens, "messages": [{ "role": "user", "content": prompt }] }));
             if let Some(key) = api_key.as_deref() {
                 call = call.header("x-api-key", key);
             }
@@ -411,7 +505,7 @@ pub async fn test_provider_model(
             (
                 client
                     .post(url)
-                    .json(&json!({ "contents": [{ "parts": [{ "text": prompt }] }] })),
+                    .json(&json!({ "contents": [{ "parts": [{ "text": prompt }] }], "generationConfig": { "maxOutputTokens": max_tokens } })),
                 extract_google_response,
             )
         }
@@ -420,24 +514,24 @@ pub async fn test_provider_model(
     let response = http_request
         .send()
         .await
-        .map_err(|err| format!("模型测试请求失败：{err}"))?;
+        .map_err(|err| format!("{action_label}请求失败：{err}"))?;
     let status = response.status();
     let body = response
         .text()
         .await
-        .map_err(|err| format!("无法读取模型测试响应：{err}"))?;
+        .map_err(|err| format!("无法读取{action_label}响应：{err}"))?;
     if !status.is_success() {
         return Err(format!(
-            "模型测试失败（{status}）：{}",
+            "{action_label}失败（{status}）：{}",
             sanitize_error_body(&body)
         ));
     }
     let payload = serde_json::from_str::<Value>(&body)
-        .map_err(|err| format!("无法解析模型测试响应：{err}"))?;
+        .map_err(|err| format!("无法解析{action_label}响应：{err}"))?;
     let output = extract(&payload)
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| "模型已响应，但未返回可显示的文本。".to_string())?;
-    Ok(TestProviderModelResponse { output })
+    Ok(output)
 }
 
 #[tauri::command]
