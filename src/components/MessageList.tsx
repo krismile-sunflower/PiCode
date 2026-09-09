@@ -26,6 +26,7 @@ import {
   PenLine,
   RotateCw,
   ShieldCheck,
+  Terminal,
   Trash2,
 } from 'lucide-react';
 import { confirmDialog } from './ConfirmDialog';
@@ -308,6 +309,65 @@ function isTerminalToolName(name: string): boolean {
   return /(?:command|terminal|shell|powershell|bash|exec|run)/i.test(name);
 }
 
+/**
+ * One row in the message list. Consecutive tool calls between messages (and
+ * sub-agent cards) are merged into a single collapsible group so a long run of
+ * commands costs one row instead of one full card per command.
+ */
+type TimelineTrack =
+  | { kind: 'message'; item: Extract<TimelineItem, { kind: 'message' }> }
+  | { kind: 'tool'; item: Extract<TimelineItem, { kind: 'tool' }> }
+  | { kind: 'tool-group'; items: Extract<TimelineItem, { kind: 'tool' }>[] };
+
+function groupTimeline(timeline: readonly TimelineItem[]): TimelineTrack[] {
+  const tracks: TimelineTrack[] = [];
+  let run: Extract<TimelineItem, { kind: 'tool' }>[] = [];
+  const flush = () => {
+    if (run.length === 1) {
+      tracks.push({ kind: 'tool', item: run[0]! });
+    } else if (run.length > 1) {
+      tracks.push({ kind: 'tool-group', items: run });
+    }
+    run = [];
+  };
+  for (const item of timeline) {
+    if (item.kind === 'message' || isSubagentTool(item.tool.toolName)) {
+      flush();
+      if (item.kind === 'message') tracks.push({ kind: 'message', item });
+      else tracks.push({ kind: 'tool', item });
+    } else {
+      run.push(item);
+    }
+  }
+  flush();
+  return tracks;
+}
+
+interface ToolGroupMetrics {
+  total: number;
+  busy: boolean;
+  failed: number;
+  allTerminal: boolean;
+  summary: string[];
+}
+
+function toolGroupMetrics(items: readonly Extract<TimelineItem, { kind: 'tool' }>[]): ToolGroupMetrics {
+  const tools = items.map((item) => item.tool);
+  const counts = new Map<string, number>();
+  for (const tool of tools) counts.set(tool.toolName, (counts.get(tool.toolName) || 0) + 1);
+  return {
+    total: tools.length,
+    busy: tools.some((tool) => tool.status === 'pending' || tool.status === 'streaming'),
+    // A failed command must never be silently buried, so the group stays open.
+    failed: tools.filter((tool) => tool.status === 'error' || tool.isError).length,
+    allTerminal: tools.every((tool) => isTerminalToolName(tool.toolName)),
+    summary: [...counts.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 3)
+      .map(([name, count]) => `${name} ×${count}`),
+  };
+}
+
 function SubagentChildRow({ child }: { child: SubagentChild }) {
   const [open, setOpen] = useState(false);
   const metrics = [
@@ -527,6 +587,65 @@ function ToolCard({ tool }: { tool: ToolExecution }) {
           <div className="m-0 border-b border-line bg-glass px-[11px] py-2.5 overflow-auto font-mono text-[10px] leading-[1.55] text-dim whitespace-pre-wrap break-words">{JSON.stringify(tool.args, null, 2)}</div>
         ) : null}
         <ToolOutput output={tool.output} terminal={terminalTool} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Collapsible bar over a run of consecutive tool calls. A long bash stretch
+ * that used to render one card per command now costs a single row; streaming
+ * or failed runs stay open so live output and failures never hide. The group
+ * still honours the global expand/collapse-all commands (`pi-studio:tool-expand`).
+ */
+function ToolGroupCard({ items }: { items: readonly Extract<TimelineItem, { kind: 'tool' }>[] }) {
+  const metrics = useMemo(() => toolGroupMetrics(items), [items]);
+  const [userOpen, setUserOpen] = useState<boolean | null>(null);
+  // `null` means "follow the tools": open while busy or failed, closed when idle.
+  const open = userOpen ?? (metrics.busy || metrics.failed > 0);
+  const title = `${metrics.allTerminal ? '命令' : '工具'} · ${metrics.total}`;
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      setUserOpen((event as CustomEvent<{ expanded: boolean }>).detail.expanded);
+    };
+    window.addEventListener('pi-studio:tool-expand', listener);
+    return () => window.removeEventListener('pi-studio:tool-expand', listener);
+  }, []);
+
+  const toggle = () => setUserOpen(!open);
+
+  return (
+    <div className="w-full shrink-0 my-[3px] overflow-hidden rounded-lg border text-secondary transition-[border-color] duration-[var(--duration-fast)] hover:border-line-hover border-[color-mix(in_srgb,var(--tool-accent)_20%,var(--border))] bg-[color-mix(in_srgb,var(--tool-bg)_82%,var(--bg-panel))]">
+      <div
+        className="group/header flex min-h-[38px] items-center justify-between gap-2.5 px-[9px] py-[7px] cursor-pointer hover:bg-glass"
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-label={`${title}，${metrics.summary.join('，')}${metrics.failed ? `，${metrics.failed} 条失败` : ''}`}
+        onClick={toggle}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            toggle();
+          }
+        }}
+      >
+        <span className="flex min-w-0 items-center gap-[7px]">
+          <span className={`inline-flex text-ghost transition-transform duration-[var(--duration-fast)]${open ? ' rotate-90' : ''}`}>
+            <ChevronRight size={9} aria-hidden="true" />
+          </span>
+          <Terminal size={13} className="flex-none text-accent-text" />
+          <span className="flex-none font-mono text-[10px] leading-[1.4] font-semibold text-accent-text">{title}</span>
+          {metrics.summary.length ? <span className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap">{metrics.summary.join(' · ')}</span> : null}
+        </span>
+        <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] whitespace-nowrap ${metrics.busy ? 'border-accent-subtle text-accent-text' : metrics.failed ? 'border-[color-mix(in_srgb,var(--error)_25%,var(--border))] text-error' : 'border-[color-mix(in_srgb,var(--success)_25%,var(--border))] text-success'}`}>
+          {metrics.busy ? <span className="h-[5px] w-[5px] flex-none rounded-full bg-accent animate-[subagent-pulse_1.4s_ease-in-out_infinite]" aria-hidden="true" /> : null}
+          {metrics.busy ? '执行中' : metrics.failed ? `${metrics.failed} 条失败` : '完成'}
+        </span>
+      </div>
+      <div data-expanded={open} className={`${open ? 'block' : 'hidden'} border-t border-line`}>
+        {items.map((item) => <ToolCard key={item.id} tool={item.tool} />)}
       </div>
     </div>
   );
@@ -769,6 +888,7 @@ export function MessageList({
     () => timeline.flatMap((item) => item.kind === 'message' && item.message.role === 'user' ? [item.message] : []),
     [timeline],
   );
+  const tracks = useMemo(() => groupTimeline(timeline), [timeline]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [conversationPositions, setConversationPositions] = useState<Record<string, number>>({});
 
@@ -915,23 +1035,25 @@ export function MessageList({
           setActiveConversationId(currentAnchor);
         }}
       >
-        {timeline.map((item) =>
-          item.kind === 'message' ? (
+        {tracks.map((track) =>
+          track.kind === 'message' ? (
             <MessageItem
-              key={item.id}
-              message={item.message}
-              editable={item.id === lastUserMessageId && !streaming}
-              regenerable={item.id === lastAssistantMessageId && !streaming}
+              key={track.item.id}
+              message={track.item.message}
+              editable={track.item.id === lastUserMessageId && !streaming}
+              regenerable={track.item.id === lastAssistantMessageId && !streaming}
               onDelete={onDeleteMessage}
               onFork={onForkMessage}
               onRegenerate={onRegenerate}
               onEdit={onEditMessage}
-              onElementRef={item.message.role === 'user' ? (node) => registerConversationNode(item.message.id, node) : undefined}
+              onElementRef={track.item.message.role === 'user' ? (node) => registerConversationNode(track.item.message.id, node) : undefined}
             />
+          ) : track.kind === 'tool' ? (
+            isSubagentTool(track.item.tool.toolName)
+              ? <SubagentCard key={track.item.id} tool={track.item.tool} />
+              : <ToolCard key={track.item.id} tool={track.item.tool} />
           ) : (
-            isSubagentTool(item.tool.toolName)
-              ? <SubagentCard key={item.id} tool={item.tool} />
-              : <ToolCard key={item.id} tool={item.tool} />
+            <ToolGroupCard key={`group-${track.items[0]?.id}`} items={track.items} />
           ),
         )}
         {permissionRequest && onRespondToExtension ? (

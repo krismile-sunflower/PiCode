@@ -959,7 +959,26 @@ export class PiStudioController {
       { type: 'set_model', provider: model.provider, modelId: model.id },
       `正在切换到 ${model.id}…`,
     );
-    if (!result.success) return;
+    if (!result.success && result.error && /not found/i.test(result.error)) {
+      // The picker merges models.json entries, so users can reach a model the
+      // running session has not loaded into its registry yet (save/refresh is
+      // async and can race the picker). Reload once and retry before giving up.
+      if (await this.reloadAndRetryModel(model)) return;
+    }
+    if (!result.success) {
+      // A silent failure here reads as "the picker did nothing" — especially
+      // when the picked model only exists in models.json and the running Pi
+      // session has not reloaded its registry yet.
+      const missingKey = /api key|未配置/i.test(result.error || '');
+      notify(
+        missingKey ? '该供应商未配置 API Key' : '切换模型失败',
+        missingKey
+          ? `${model.provider || '该供应商'} 还没有可用的 API Key。请在设置的模型供应商页填写 Key 并保存，然后重试。`
+          : `${model.provider ? `${model.provider} · ` : ''}${model.id} 当前不可用${result.error ? `：${result.error}` : ''}。请确认配置已保存，并发送 /refresh-models 或重启会话。`,
+        'error',
+      );
+      return;
+    }
     const selected = result.data?.model || model;
     appStore.update({
       currentModelId: model.id,
@@ -967,6 +986,28 @@ export class PiStudioController {
       thinkingLevel: result.data?.thinkingLevel || appStore.getSnapshot().thinkingLevel,
       contextWindowSize: model.contextWindow || model.context_window || 0,
     });
+  }
+
+  /** Reload models.json into the runtime registry, then retry the switch once. */
+  private async reloadAndRetryModel(model: ModelInfo): Promise<boolean> {
+    try {
+      await this.refreshPiModels();
+    } catch {
+      return false;
+    }
+    const retry = await this.rpcCommand<{ model?: ModelInfo; thinkingLevel?: string }>(
+      { type: 'set_model', provider: model.provider, modelId: model.id },
+      `正在切换到 ${model.id}…`,
+    );
+    if (!retry.success) return false;
+    appStore.update({
+      currentModelId: model.id,
+      currentModelProvider: model.provider || '',
+      thinkingLevel: retry.data?.thinkingLevel || appStore.getSnapshot().thinkingLevel,
+      contextWindowSize: model.contextWindow || model.context_window || 0,
+    });
+    notify('模型已切换', `${model.provider ? `${model.provider} · ` : ''}${model.id}`, 'success');
+    return true;
   }
 
   /**
@@ -1239,6 +1280,19 @@ export class PiStudioController {
         modelsConfigSaving: false,
       });
       notify('模型配置已保存', result.path, 'success');
+      // Pi only marks providers with resolved credentials as available, so a
+      // provider saved without an apiKey silently never reaches the picker —
+      // tell the user now instead of letting "Model not found" surprise them.
+      const missingKeys = Object.entries(result.config.providers || {})
+        .filter(([, provider]) => (provider.models?.length ?? 0) > 0 && !String(provider.apiKey || '').trim())
+        .map(([name]) => name);
+      if (missingKeys.length) {
+        notify(
+          '部分供应商未配置 API Key',
+          `${missingKeys.join('、')} 的模型在填写 Key 前不会出现在可用模型列表，也无法切换。请在对应供应商的 API Key 输入框填写后重新保存。`,
+          'warning',
+        );
+      }
       // Force Pi to re-read models.json, then refresh the header picker.
       await this.refreshPiModels();
       return true;
@@ -1305,13 +1359,17 @@ export class PiStudioController {
     }
 
     if (hasRefreshCommand) {
+      // Snapshot the current registry first: the refresh command re-reads
+      // models.json asynchronously, and waiting for "non-empty" alone would
+      // return while the stale list is still served.
+      const before = await this.modelListSignature();
       const refresh = await this.rpcCommand(
         { type: 'prompt', message: '/refresh-models' },
         '',
         true,
       );
       if (refresh.success) {
-        await this.waitForModelList();
+        await this.waitForModelRefresh(before);
         await this.loadModels();
         // Also refresh slash commands so newly-added skill/prompt names can appear later.
         void this.loadSlashCommands();
@@ -2663,6 +2721,30 @@ export class PiStudioController {
     while (Date.now() < deadline) {
       const models = await this.rpcCommand<ModelsResponse>({ type: 'get_available_models' }, '', true);
       if (models.success && (models.data?.models?.length || 0) > 0) return;
+      await new Promise((resolve) => window.setTimeout(resolve, 120));
+    }
+  }
+
+  /** Stable identity of the runtime model list, e.g. for refresh-change detection. */
+  private async modelListSignature(): Promise<string> {
+    const models = await this.rpcCommand<ModelsResponse>({ type: 'get_available_models' }, '', true);
+    return JSON.stringify(
+      (models.data?.models || []).map((model) => `${model.provider || ''}:${model.id}`).sort(),
+    );
+  }
+
+  /**
+   * Wait until the runtime model list actually differs from `previous`.
+   *
+   * `/refresh-models` re-reads models.json asynchronously; the previous
+   * "wait until non-empty" check returned immediately because the stale
+   * registry still held the old models, so the picker kept missing a
+   * just-added provider.
+   */
+  private async waitForModelRefresh(previous: string, timeoutMs = 2_500): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (await this.modelListSignature() !== previous) return;
       await new Promise((resolve) => window.setTimeout(resolve, 120));
     }
   }

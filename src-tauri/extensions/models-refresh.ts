@@ -13,7 +13,11 @@ export default function (pi: ExtensionAPI) {
     description: "Reload models.json into the current Pi session",
     handler: async (_args, ctx) => {
       try {
-        ctx.modelRegistry.refresh();
+        // refresh() reloads models.json AND recomputes provider availability
+        // asynchronously — awaiting it is required before registry reads,
+        // otherwise the notification and the desktop poll both see the stale
+        // snapshot.
+        await ctx.modelRegistry.refresh();
         const available = await ctx.modelRegistry.getAvailable();
         await ctx.ui.notify(
           `已重新加载模型配置（${available.length} 个可用模型）`,

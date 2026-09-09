@@ -115,6 +115,67 @@ describe('MessageList', () => {
     expect(screen.getByText(/README\.md/)).toBeVisible();
   });
 
+  it('merges consecutive commands into one collapsible group', () => {
+    const timeline: TimelineItem[] = [
+      { id: 'msg-1', kind: 'message', message: { id: 'msg-1', role: 'assistant', content: '先跑一遍环境检查。' } },
+      { id: 'bash-1', kind: 'tool', tool: { toolCallId: 'bash-1', toolName: 'bash', args: { command: 'node -v' }, status: 'complete', output: 'v20', history: true } },
+      { id: 'bash-2', kind: 'tool', tool: { toolCallId: 'bash-2', toolName: 'bash', args: { command: 'pnpm install' }, status: 'complete', output: 'done', history: true } },
+      { id: 'bash-3', kind: 'tool', tool: { toolCallId: 'bash-3', toolName: 'bash', args: { command: 'pnpm test' }, status: 'complete', output: 'ok', history: true } },
+    ];
+
+    render(<MessageList timeline={timeline} streaming={false} />);
+
+    const group = screen.getByRole('button', { name: /命令 · 3/ });
+    expect(group).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('bash ×3')).toBeInTheDocument();
+    // Collapsed: the individual command cards are rendered but hidden.
+    expect(screen.getAllByText('pnpm install').length).toBeGreaterThan(0);
+    fireEvent.click(group);
+    expect(screen.getByRole('button', { name: /命令 · 3/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByText('pnpm install').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('pnpm test').length).toBeGreaterThan(0);
+  });
+
+  it('keeps a tool group open while a command is streaming', () => {
+    const timeline: TimelineItem[] = [
+      { id: 'bash-1', kind: 'tool', tool: { toolCallId: 'bash-1', toolName: 'bash', args: { command: 'pnpm setup' }, status: 'complete', output: 'ready', history: true } },
+      { id: 'bash-2', kind: 'tool', tool: { toolCallId: 'bash-2', toolName: 'bash', args: { command: 'pnpm test -- --run' }, status: 'streaming', output: 'running…' } },
+    ];
+
+    render(<MessageList timeline={timeline} streaming />);
+
+    expect(screen.getByRole('button', { name: /命令 · 2/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(/running…/)).toBeVisible();
+  });
+
+  it('keeps a tool group open when a command in it fails', () => {
+    const timeline: TimelineItem[] = [
+      { id: 'bash-1', kind: 'tool', tool: { toolCallId: 'bash-1', toolName: 'bash', args: { command: 'ls' }, status: 'complete', output: '', history: true } },
+      { id: 'bash-2', kind: 'tool', tool: { toolCallId: 'bash-2', toolName: 'bash', args: { command: 'pnpm build' }, status: 'complete', output: 'error: build failed', isError: true, history: true } },
+    ];
+
+    render(<MessageList timeline={timeline} streaming={false} />);
+
+    expect(screen.getByRole('button', { name: /命令 · 2/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('1 条失败')).toBeInTheDocument();
+    expect(screen.getByText(/build failed/)).toBeVisible();
+  });
+
+  it('leaves single commands and sub-agent cards outside the merged group', () => {
+    const timeline: TimelineItem[] = [
+      { id: 'bash-1', kind: 'tool', tool: { toolCallId: 'bash-1', toolName: 'bash', args: { command: 'ls src' }, status: 'complete', output: 'main.tsx', history: true } },
+      { id: 'tool-sub', kind: 'tool', tool: { toolCallId: 'tool-sub', toolName: 'subagent', args: { agent: 'scout', task: '梳理结构' }, status: 'complete', output: '完成', history: true } },
+      { id: 'bash-2', kind: 'tool', tool: { toolCallId: 'bash-2', toolName: 'bash', args: { command: 'pnpm build' }, status: 'complete', output: 'built', history: true } },
+    ];
+
+    render(<MessageList timeline={timeline} streaming={false} />);
+
+    // No group bar: each side of the sub-agent card keeps its own card.
+    expect(screen.queryByRole('button', { name: /命令 · 2/ })).not.toBeInTheDocument();
+    expect(screen.getByText('子代理')).toBeInTheDocument();
+    expect(screen.getAllByText(/ls src/).length).toBeGreaterThan(0);
+  });
+
   it('lets users copy their own messages', () => {
     render(<MessageList timeline={[{
       id: 'user-copy',

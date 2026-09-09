@@ -45,6 +45,7 @@ import { pushInputHistory, readDraft, readInputHistory, writeDraft, writeInputHi
 import { readOptimizeTemplatePref, writeOptimizeTemplatePref } from '../lib/prompt-optimizer';
 import { Select } from './Select';
 import { THINKING_LEVELS, thinkingLevelLabel } from '../lib/thinking';
+import { availableThinkingLevels } from '../lib/reasoning';
 import {
   ArrowDown,
   ArrowUp,
@@ -143,11 +144,38 @@ export function Header({ snapshot, sidebarOpen, onOpenSidebar, fileOpen, onToggl
   const currentProvider = snapshot.currentModelProvider && snapshot.currentModelProvider !== 'unknown'
     ? snapshot.currentModelProvider
     : snapshot.defaultProvider;
-  const models = snapshot.models.filter((model) => {
+  // Only levels the active model's reasoning profile actually accepts, so a
+  // preset that marks minimal/low unsupported hides them instead of erroring
+  // at request time.
+  const thinkingOptions = useMemo(
+    () => availableThinkingLevels(currentProvider, snapshot.currentModelId, snapshot.modelsConfig)
+      .map((level) => ({ value: level, label: thinkingLevelLabel(level) })),
+    [currentProvider, snapshot.currentModelId, snapshot.modelsConfig],
+  );
+  // Runtime list first, models.json entries fill the gaps: a provider added
+  // while a session predates the refresh extension (or whose refresh failed)
+  // must still be reachable from the picker instead of silently missing.
+  const allModels = useMemo(() => {
+    const result = new Map<string, ModelInfo>();
+    for (const model of snapshot.models) {
+      if (model.provider && model.id) result.set(`${model.provider}:${model.id}`, model);
+    }
+    for (const [provider, config] of Object.entries(snapshot.modelsConfig?.providers || {})) {
+      for (const model of config.models || []) {
+        if (!model.id || result.has(`${provider}:${model.id}`)) continue;
+        result.set(`${provider}:${model.id}`, { id: model.id, name: model.name, provider, contextWindow: model.contextWindow });
+      }
+    }
+    return [...result.values()];
+  }, [snapshot.models, snapshot.modelsConfig]);
+  const models = allModels.filter((model) => {
+    // The list spans every configured provider — the chips row was removed,
+    // so this dropdown is the only way to reach another provider's models.
     const query = modelQuery.trim().toLowerCase();
-    if (!currentProvider || model.provider !== currentProvider) return false;
     return !query || `${model.id} ${model.name || ''}`.toLowerCase().includes(query);
   });
+  // Label rows with their provider only when it is actually ambiguous.
+  const multiProvider = new Set(allModels.map((model) => model.provider).filter(Boolean)).size > 1;
   const usage = snapshot.lastUsage;
   const latestContextTokens = totalContextTokens(usage);
   const hasReportedContext = snapshot.contextUsage !== undefined;
@@ -218,13 +246,16 @@ export function Header({ snapshot, sidebarOpen, onOpenSidebar, fileOpen, onToggl
             <ChevronDown size={12} className={`flex-none opacity-70 transition-transform duration-[var(--duration-fast)] ease-[var(--ease)]${modelsOpen ? ' rotate-180' : ''}`} aria-hidden="true" />
           </button>
           {modelsOpen ? (
-            <div className="absolute right-0 top-[calc(100%_+_8px)] z-[1001] w-[min(330px,calc(100vw_-_24px))] max-h-[420px] overflow-hidden rounded-[10px] border border-line bg-frosted p-2 shadow-[var(--shadow-lg),var(--shadow-inset)]" role="listbox" aria-label="选择模型">
+            <div className="absolute right-0 top-[calc(100%_+_8px)] z-[1001] flex max-h-[420px] w-[min(330px,calc(100vw_-_24px))] flex-col overflow-hidden rounded-[10px] border border-line bg-frosted p-2 shadow-[var(--shadow-lg),var(--shadow-inset)]" role="listbox" aria-label="选择模型">
               <div className="flex items-center justify-between gap-3 px-1 pt-[3px] pb-[9px] text-[11px] font-semibold text-primary">
                 <span>选择模型</span>
                 <span className="max-w-[150px] overflow-hidden rounded-full bg-accent-subtle px-[7px] py-0.5 text-[9px] font-semibold text-accent-text text-ellipsis whitespace-nowrap">{currentProvider || '未选择供应商'}</span>
               </div>
-              <input className="mb-[7px] h-9 w-full rounded-lg border border-line bg-muted px-[11px] text-[11px] text-primary outline-0 focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-subtle)] placeholder:text-dim" type="search" aria-label="搜索模型" placeholder={currentProvider ? `在 ${currentProvider} 中搜索…` : '搜索模型…'} value={modelQuery} onChange={(event) => setModelQuery(event.target.value)} autoFocus />
-              <div className="flex max-h-[340px] flex-col gap-0.5 overflow-y-auto">
+              <input className="mb-[7px] h-9 w-full rounded-lg border border-line bg-muted px-[11px] text-[11px] text-primary outline-0 focus:border-accent focus:shadow-[0_0_0_2px_var(--accent-subtle)] placeholder:text-dim" type="search" aria-label="搜索模型" placeholder="搜索全部供应商的模型…" value={modelQuery} onChange={(event) => setModelQuery(event.target.value)} autoFocus />
+              {/* flex-1 + min-h-0: the list takes whatever space the header and
+                  search box leave inside the 420px cap so the last rows (and
+                  the scrollbar) are never clipped. */}
+              <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
                 {models.length ? models.map((model) => {
                   const active = model.id === snapshot.currentModelId && model.provider === currentProvider;
                   const context = model.contextWindow || model.context_window || 0;
@@ -235,6 +266,7 @@ export function Header({ snapshot, sidebarOpen, onOpenSidebar, fileOpen, onToggl
                         {model.name && model.name !== model.id ? <span className="min-w-0 overflow-hidden text-[9px] leading-[1.25] text-dim text-ellipsis whitespace-nowrap">{model.name}</span> : null}
                       </span>
                       <span className="inline-flex min-w-[34px] items-center justify-end gap-[7px] text-accent-text">
+                        {multiProvider ? <span className="flex-none font-mono text-[9px] leading-none text-dim">{model.provider}</span> : null}
                         {context ? <span className="flex-none font-mono text-[9px] leading-none text-dim">{Math.round(context / 1000)}k</span> : null}
                         {active ? <Check size={13} /> : null}
                       </span>
@@ -251,7 +283,7 @@ export function Header({ snapshot, sidebarOpen, onOpenSidebar, fileOpen, onToggl
           value={snapshot.thinkingLevel}
           className="max-compact:hidden!"
           leading={<span>思考：</span>}
-          options={THINKING_LEVELS.map((level) => ({ value: level, label: thinkingLevelLabel(level) }))}
+          options={thinkingOptions}
           onChange={(level) => void controller.setThinkingLevel(level)}
         />
         <div className="relative" ref={metricsRef}>
@@ -429,6 +461,15 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
   const optimizeRef = useRef<HTMLDivElement>(null);
   const optimizeMenuRef = useRef<HTMLDivElement>(null);
   const planReadOnly = snapshot.plan.phase === 'plan' || snapshot.plan.phase === 'review';
+  // Only levels the active model's reasoning profile accepts (see Header).
+  const thinkingOptions = useMemo(
+    () => availableThinkingLevels(
+      snapshot.currentModelProvider && snapshot.currentModelProvider !== 'unknown' ? snapshot.currentModelProvider : snapshot.defaultProvider,
+      snapshot.currentModelId,
+      snapshot.modelsConfig,
+    ).map((level) => ({ value: level, label: thinkingLevelLabel(level) })),
+    [snapshot.currentModelProvider, snapshot.defaultProvider, snapshot.currentModelId, snapshot.modelsConfig],
+  );
   const knownFiles = useRef(new Set<string>());
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
@@ -1166,7 +1207,7 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
                 ariaLabel="思考强度"
                 value={snapshot.thinkingLevel}
                 leading={<Brain size={14} />}
-                options={THINKING_LEVELS.map((level) => ({ value: level, label: thinkingLevelLabel(level) }))}
+                options={thinkingOptions}
                 onChange={(level) => void controller.setThinkingLevel(level)}
               />
             </div>

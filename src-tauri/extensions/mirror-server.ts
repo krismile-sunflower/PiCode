@@ -752,12 +752,21 @@ export default function (pi: ExtensionAPI) {
             (m: any) => m.provider === command.provider && m.id === command.modelId
           );
           if (!model) {
-            sendTo(ws, error("set_model", `Model not found: ${command.provider}/${command.modelId}`));
+            // getAvailable() only lists providers whose credentials resolved.
+            // A models.json provider without an API key never appears here, so
+            // the raw "Model not found" would send users hunting for a typo
+            // that does not exist — point at the actual fix instead.
+            const known = ctx.modelRegistry.find(command.provider, command.modelId);
+            if (known) {
+              sendTo(ws, error("set_model", `供应商 ${command.provider} 未配置 API Key（或凭证校验未完成），请在设置中填写并保存`));
+            } else {
+              sendTo(ws, error("set_model", `Model not found: ${command.provider}/${command.modelId}`));
+            }
             break;
           }
           const ok = await activePi.setModel(model);
           if (!ok) {
-            sendTo(ws, error("set_model", "No API key for this model"));
+            sendTo(ws, error("set_model", `供应商 ${command.provider} 未配置可用的 API Key`));
             break;
           }
           sendTo(ws, success("set_model", model));

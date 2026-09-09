@@ -466,8 +466,8 @@ export interface ModelsProviderModel {
   [key: string]: unknown;
 }
 
-export type PiReasoningLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
-export type ProviderReasoningValue = 'omit' | 'unsupported' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+export type PiReasoningLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type ProviderReasoningValue = 'omit' | 'unsupported' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface ReasoningProfile {
   name?: string;

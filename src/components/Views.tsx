@@ -41,7 +41,7 @@ import {
 import { confirmDialog } from './ConfirmDialog';
 import { DiffView } from './DiffView';
 import { DEFAULT_OPTIMIZE_INSTRUCTION, readOptimizeTemplatePref } from '../lib/prompt-optimizer';
-import { DEFAULT_REASONING_PROFILE, migrateReasoningConfig, PI_REASONING_LEVELS, REASONING_UI_LABELS } from '../lib/reasoning';
+import { DEFAULT_REASONING_PROFILE, availableThinkingLevels, migrateReasoningConfig, PI_REASONING_LEVELS, REASONING_UI_LABELS } from '../lib/reasoning';
 import { Select } from './Select';
 import { THINKING_LEVELS, thinkingLevelLabel } from '../lib/thinking';
 
@@ -858,7 +858,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                   className="w-[110px] font-mono"
                   ariaLabel="思考级别"
                   value={snapshot.thinkingLevel}
-                  options={THINKING_LEVELS.map((level) => ({ value: level, label: thinkingLevelLabel(level) }))}
+                  options={availableThinkingLevels(snapshot.currentModelProvider !== 'unknown' ? snapshot.currentModelProvider : snapshot.defaultProvider, snapshot.currentModelId, snapshot.modelsConfig).map((level) => ({ value: level, label: thinkingLevelLabel(level) }))}
                   onChange={(level) => void controller.setThinkingLevel(level)}
                 />
               </div>
@@ -1533,7 +1533,7 @@ function ProviderCard({
                   <label className="flex max-w-[300px] min-w-0 flex-col gap-[5px] text-[11px] text-secondary max-compact:max-w-none"><span>预设名称</span><input className="settings-text-input" value={profile.name || profileId} onChange={(event) => onChange({ ...provider, reasoningProfiles: { ...profiles, [profileId]: { ...profile, name: event.target.value } } })} /></label>
                   <button className="settings-action-btn danger min-h-[34px]!" type="button" onClick={() => { const next = { ...profiles }; delete next[profileId]; onChange({ ...provider, reasoningProfiles: next, models: models.map((model) => model.reasoningProfile === profileId ? { ...model, reasoningProfile: undefined, reasoning: undefined } : model) }); }}>删除预设</button>
                 </div>
-                <div className="grid grid-cols-[repeat(6,minmax(0,1fr))] items-end gap-2 p-0 max-narrow:grid-cols-3 max-compact:grid-cols-2">
+                <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] items-end gap-2 p-0 max-narrow:grid-cols-3 max-compact:grid-cols-2">
                   {THINKING_LEVELS.map((level) => (
                     <div className="flex min-w-0 flex-col gap-1 text-[10px] text-dim" key={level}>
                       <span>{level === 'off' ? REASONING_UI_LABELS.off : thinkingLevelLabel(level)}</span>
@@ -1636,7 +1636,7 @@ function ProviderCard({
                   </label>
                 </div>
                 {!model.reasoningProfile && model.thinkingLevelMap ? (
-                  <div className="grid grid-cols-[minmax(136px,1.4fr)_repeat(6,minmax(0,1fr))] items-end gap-2 rounded-[9px] border border-line bg-panel p-2.5 max-compact:grid-cols-2">
+                  <div className="grid grid-cols-[minmax(136px,1.4fr)_repeat(7,minmax(0,1fr))] items-end gap-2 rounded-[9px] border border-line bg-panel p-2.5 max-compact:grid-cols-2">
                     <span className="text-[11px] leading-[1.45] text-secondary">模型强度映射<br />直接配置，保存后按此映射发送</span>
                     {THINKING_LEVELS.map((level) => {
                       const configured = model.thinkingLevelMap?.[level];

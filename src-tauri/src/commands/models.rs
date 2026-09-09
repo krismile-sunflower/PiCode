@@ -847,7 +847,7 @@ fn validate_thinking_level_map(
     model_id: &str,
     value: &Value,
 ) -> Result<(), String> {
-    const LEVELS: &[&str] = &["off", "minimal", "low", "medium", "high", "xhigh"];
+    const LEVELS: &[&str] = &["off", "minimal", "low", "medium", "high", "xhigh", "max"];
     let map = value.as_object().ok_or_else(|| {
         format!("Provider `{provider_name}` model `{model_id}`: thinkingLevelMap must be an object")
     })?;

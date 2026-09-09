@@ -1,11 +1,15 @@
+import { THINKING_LEVELS } from './thinking';
 import type { ModelsConfig, ModelsProviderConfig, ModelsProviderModel, PiReasoningLevel, ProviderReasoningValue, ReasoningProfile } from './types';
 
-export const PI_REASONING_LEVELS: PiReasoningLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+export const PI_REASONING_LEVELS: PiReasoningLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 export const REASONING_UI_LABELS = { off: '关闭（不发送推理参数）', omit: '不发送推理参数', unsupported: '不支持' } as const;
 
+// OpenAI's current API no longer accepts `minimal`/`low` reasoning efforts.
+// `xhigh` (超高) passes through as-is, and OpenAI's top tier is `max` (极致),
+// which Pi exposes as its own thinking level.
 export const DEFAULT_REASONING_PROFILE: ReasoningProfile = {
   name: 'OpenAI 标准',
-  levelMap: { off: 'omit', minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh' },
+  levelMap: { off: 'omit', minimal: 'unsupported', low: 'unsupported', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
 };
 
 export function migrateReasoningConfig(config: ModelsConfig): ModelsConfig {
@@ -40,4 +44,21 @@ export function withReasoningPayload(payload: Record<string, unknown>, api: stri
   return api === 'openai-responses'
     ? { ...payload, reasoning: { effort: mapped } }
     : { ...payload, reasoning_effort: mapped };
+}
+
+/**
+ * Thinking levels the current model can actually accept, per its reasoning
+ * profile / per-model overrides in models.json. Falls back to the full list
+ * when the model is unknown (no config yet, unknown provider) so the picker
+ * never empties out — Pi clamps unsupported levels on its side anyway.
+ */
+export function availableThinkingLevels(
+  providerName: string | null | undefined,
+  modelId: string | null | undefined,
+  config: ModelsConfig | null | undefined,
+): PiReasoningLevel[] {
+  const provider = providerName ? config?.providers?.[providerName] : undefined;
+  const model = modelId ? provider?.models?.find((entry) => entry.id === modelId) : undefined;
+  if (!provider || !model) return THINKING_LEVELS;
+  return THINKING_LEVELS.filter((level) => resolveReasoningValue(provider, model, level) !== 'unsupported');
 }
