@@ -83,8 +83,8 @@ export function ConfirmHost() {
         aria-labelledby={`confirm-title-${pending.id}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-1.5 text-sm font-semibold text-primary" id={`confirm-title-${pending.id}`}>{pending.title}</div>
-        {pending.message ? <p className="mb-1.5 text-xs text-secondary">{pending.message}</p> : null}
+        <div className="mb-1.5 text-[13px] font-medium text-primary" id={`confirm-title-${pending.id}`}>{pending.title}</div>
+        {pending.message ? <p className="mb-1.5 text-[12px] text-secondary">{pending.message}</p> : null}
         {pending.detail ? <p className="mb-1 truncate font-mono text-[11px] leading-[1.5] text-dim" title={pending.detail}>{pending.detail}</p> : null}
         <div className="mt-4 flex justify-end gap-2">
           <button className="settings-action-btn" type="button" onClick={() => settle(false)}>

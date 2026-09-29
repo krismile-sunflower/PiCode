@@ -13,16 +13,11 @@ import {
 } from '../lib/subagents';
 import {
   ArrowDown,
-  ArrowUp,
-  ArrowUpRight,
   Brain,
-  Check,
   ChevronRight,
   CircleAlert,
   Copy,
-  FileText,
   GitBranch,
-  ImageIcon,
   PenLine,
   RotateCw,
   ShieldCheck,
@@ -62,7 +57,7 @@ function ThinkingBlock({ content, streaming }: { content: string; streaming?: bo
         <span className={`inline-flex text-dim transition-transform duration-[var(--duration-fast)] ease-[var(--ease)]${expanded ? ' rotate-90' : ''}`}>
           <ChevronRight size={9} aria-hidden="true" />
         </span>
-        <span className="inline-flex items-center gap-[5px] text-[10px] font-semibold">
+        <span className="inline-flex items-center gap-[5px] text-[11px] font-medium">
           <Brain size={12} /> 思考过程
         </span>
       </button>
@@ -75,21 +70,18 @@ function Welcome() {
   const starters = [
     {
       id: 'explore',
-      index: '01',
       title: '理解这个项目',
       description: '快速梳理结构、技术栈与运行方式。',
       prompt: '帮我快速了解这个项目的结构、技术栈和运行方式。',
     },
     {
       id: 'plan',
-      index: '02',
       title: '规划一次改动',
       description: '先确认影响范围，再拆分可执行步骤。',
       prompt: '我想实现一个功能，请先分析影响范围并给出计划。',
     },
     {
       id: 'debug',
-      index: '03',
       title: '排查一个问题',
       description: '描述现象，Pi 会协助定位原因与修复方向。',
       prompt: '我遇到了一个问题，请帮助我定位原因并提出修复方案。',
@@ -101,46 +93,25 @@ function Welcome() {
   };
 
   return (
-    <section className="relative grid min-h-0 place-items-center overflow-hidden pt-[clamp(40px,6vh,72px)] px-6 pb-9 before:absolute before:inset-0 before:opacity-[0.28] before:pointer-events-none before:content-[''] before:[background:linear-gradient(90deg,color-mix(in_srgb,var(--border)_40%,transparent)_1px,transparent_1px)_50%_0/72px_72px,linear-gradient(color-mix(in_srgb,var(--border)_32%,transparent)_1px,transparent_1px)_50%_0/72px_72px)] before:[mask-image:radial-gradient(ellipse_64%_54%_at_50%_45%,black_0%,transparent_78%)] after:absolute after:top-[8%] after:left-1/2 after:w-[min(760px,85vw)] after:pointer-events-none after:content-[''] after:[aspect-ratio:1.7] after:-translate-x-1/2 after:rounded-full after:bg-[radial-gradient(ellipse,color-mix(in_srgb,var(--accent)_13%,transparent),transparent_66%)] after:[filter:blur(22px)] max-compact:min-h-[calc(100%_-_28px)] max-compact:pt-9 max-compact:px-6 max-compact:pb-7" aria-label="开始新会话">
-      <div className="relative z-[1] w-[min(100%,760px)]">
-        <div className="mx-auto mb-6 max-w-[570px] text-center">
-          <div className="mx-auto mb-[18px] grid h-[46px] w-[46px] place-items-center rounded-[14px] border border-[color-mix(in_srgb,var(--accent)_32%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_9%,var(--bg-elevated))] shadow-[0_12px_32px_color-mix(in_srgb,var(--accent)_13%,transparent),var(--shadow-inset)] max-compact:h-10 max-compact:w-10 max-compact:mb-3.5 max-compact:rounded-xl">
-            <img src="/icons/tau-192.png" alt="" className="h-7 w-7 opacity-[0.96] max-compact:h-6 max-compact:w-6" />
-          </div>
-          <span className="eyebrow mb-2.5 text-accent-text tracking-[0.16em] max-compact:mb-2 max-compact:text-[9px]">PiCode / new session</span>
-          <h1 className="m-0 text-[clamp(32px,4.2vw,48px)] font-bold tracking-[-0.06em] leading-[1.04] text-primary [text-wrap:balance] max-compact:text-[clamp(31px,10vw,38px)]">把想法变成<br /><em className="text-accent-text not-italic">下一步行动。</em></h1>
-          <p className="mx-auto mt-3.5 max-w-[540px] text-[13px] leading-[1.75] text-secondary [text-wrap:pretty] max-compact:mt-[11px] max-compact:text-[12px] max-compact:leading-[1.65]">选择一个起点，或直接在下方描述你的任务。Pi 会保留必要的上下文，让工作自然地继续下去。</p>
-        </div>
-        <div className="grid grid-cols-[1.24fr_repeat(2,minmax(0,1fr))] [grid-template-areas:'explore_plan_debug'] gap-2 max-compact:grid-cols-1 max-compact:[grid-template-areas:'explore''plan''debug']" aria-label="常用起点">
+    <section className="relative grid min-h-0 flex-1 place-items-center overflow-hidden px-6 py-6 max-compact:min-h-[calc(100%_-_28px)] max-compact:px-6" aria-label="开始新会话">
+      <div className="relative z-[1] w-[min(100%,720px)]">
+        <h1 className="m-0 text-center text-[22px] font-medium leading-[1.35] text-primary">把想法变成下一步行动。</h1>
+        <div className="mt-6 flex flex-wrap justify-center gap-2" aria-label="常用起点">
           {starters.map((starter) => (
             <button
-              className={`group grid min-w-0 min-h-24 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-[var(--radius-md)] border border-line bg-[color-mix(in_srgb,var(--bg-panel)_88%,transparent)] p-4 text-left text-primary cursor-pointer transition-[transform,border-color,background-color,box-shadow] duration-[var(--duration)] ease-[var(--ease)] hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--accent)_40%,var(--border))] hover:bg-[color-mix(in_srgb,var(--accent)_8%,var(--bg-elevated))] hover:shadow-[0_12px_30px_color-mix(in_srgb,var(--accent)_10%,transparent),var(--shadow-inset)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-accent max-compact:min-h-[72px] max-compact:px-3.5 max-compact:py-[13px]`}
+              className="rounded-[6px] border border-line px-3 py-1.5 text-[12px] text-secondary cursor-pointer transition-[border-color,background-color,color] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-panel hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               key={starter.id}
               type="button"
+              title={starter.description}
               onClick={() => prefillComposer(starter.prompt)}
             >
-              <span className="mt-0.5 font-mono text-[10px] leading-none text-accent-text tabular-nums">{starter.index}</span>
-              <span className="flex min-w-0 flex-col gap-[5px] max-compact:gap-[3px]">
-                <strong className="text-[13px] [font-weight:670] leading-[1.3] text-primary max-compact:text-[12px]">{starter.title}</strong>
-                <span className="text-[11px] leading-[1.5] text-dim [text-wrap:pretty] max-compact:text-[10px]">{starter.description}</span>
-              </span>
-              <span className="self-center text-dim transition-[transform,color] duration-[var(--duration-fast)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-accent-text"><ArrowUpRight size={18} /></span>
+              {starter.title}
             </button>
           ))}
         </div>
-        <div className="mt-[22px] flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-dim max-compact:mt-[15px] max-compact:gap-x-[11px] max-compact:gap-y-1.5 max-compact:text-[9px]" aria-label="可用能力">
-          <span className="inline-flex items-center gap-1.5"><FileText size={12} />Ctrl+Shift+G 审阅 Git 变更</span>
-          <span className="inline-flex items-center gap-1.5"><ShieldCheck size={12} />设置里可切换请求确认 / 只读 / 完全访问</span>
-          <span className="inline-flex items-center gap-1.5"><Check size={12} />计划模式：先确认步骤再执行</span>
-          <span className="inline-flex items-center gap-1.5"><ImageIcon size={12} />可直接粘贴或拖入截图</span>
-        </div>
-        <div className="mt-[22px] flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-dim max-compact:mt-[15px] max-compact:gap-x-[11px] max-compact:gap-y-1.5 max-compact:text-[9px]" aria-label="键盘快捷键">
-          <span className="inline-flex items-center gap-[5px]"><kbd>/</kbd> 聚焦输入框</span>
-          <span className="inline-flex items-center gap-[5px]"><kbd>Ctrl+K</kbd> 打开命令</span>
-          <span className="inline-flex items-center gap-[5px]"><kbd><ArrowUp size={10} aria-hidden="true" /></kbd> 上一条输入</span>
-          <span className="inline-flex items-center gap-[5px]"><kbd>Esc</kbd> 停止生成</span>
+        <div className="mt-5 flex justify-center text-[11px] text-dim">
           <button
-            className="inline-flex items-center gap-1 border-0 bg-transparent text-inherit [font:inherit] cursor-pointer hover:text-accent-text"
+            className="inline-flex items-center gap-1.5 border-0 bg-transparent text-inherit [font:inherit] cursor-pointer hover:text-secondary"
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('pi-studio:show-shortcuts'))}
           >
@@ -157,16 +128,16 @@ function ErrorMessage({ message, onDelete }: { message: RenderedMessage; onDelet
   const canDelete = Boolean(onDelete && message.history && message.sessionEntryId);
   return (
     <div className="group relative mb-0.5 flex w-full max-w-full min-w-0 shrink-0 flex-col items-start">
-      <div className="grid w-[min(100%,720px)] grid-cols-[24px_minmax(0,1fr)] gap-[9px] rounded-[10px] border border-[color-mix(in_srgb,var(--error)_34%,var(--border))] bg-[color-mix(in_srgb,var(--error)_7%,var(--bg-panel))] px-[11px] py-2.5 text-secondary" role="alert">
-        <span className="grid h-[22px] w-[22px] place-items-center rounded-[7px] bg-[color-mix(in_srgb,var(--error)_14%,transparent)] text-error" aria-hidden="true"><CircleAlert size={14} /></span>
+      <div className="grid w-[min(100%,720px)] grid-cols-[24px_minmax(0,1fr)] gap-[9px] rounded-[8px] border border-[color-mix(in_srgb,var(--error)_34%,var(--border))] bg-[color-mix(in_srgb,var(--error)_7%,var(--bg-panel))] px-[11px] py-2.5 text-secondary" role="alert">
+        <span className="grid h-[22px] w-[22px] place-items-center rounded-[6px] bg-[color-mix(in_srgb,var(--error)_14%,transparent)] text-error" aria-hidden="true"><CircleAlert size={14} /></span>
         <div className="min-w-0">
-          <strong className="block text-[12px] font-bold text-error">操作失败</strong>
+          <strong className="block text-[12px] font-medium text-error">操作失败</strong>
           <p className="mt-0.5 mb-0 text-[11px] leading-[1.55] text-secondary">{message.content}</p>
         </div>
       </div>
       {canDelete ? (
         <div className="mt-px inline-flex items-center gap-0.5 self-start opacity-0 pointer-events-none transition-opacity duration-[var(--duration-fast)] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
-          <button className="inline-flex h-[22px] w-6 items-center justify-center rounded-[5px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-[color-mix(in_srgb,var(--error)_10%,transparent)] hover:text-error disabled:opacity-[0.35] disabled:cursor-wait" type="button" aria-label="删除这条消息" title="删除这条消息" disabled={deleting} onClick={async () => {
+          <button className="inline-flex h-[22px] w-6 items-center justify-center rounded-[6px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-[color-mix(in_srgb,var(--error)_10%,transparent)] hover:text-error disabled:opacity-[0.35] disabled:cursor-wait" type="button" aria-label="删除这条消息" title="删除这条消息" disabled={deleting} onClick={async () => {
             if (!message.sessionEntryId) return;
                 const confirmed = await confirmDialog({ title: '删除这条消息？', message: '删除后会同步修改会话上下文。' });
                 if (!confirmed) return;
@@ -218,7 +189,7 @@ function MessageItem({
   );
   return (
     <div ref={onElementRef} data-role={message.role} data-message-id={message.id} className={`group relative mb-0.5 flex w-full max-w-full min-w-0 shrink-0 flex-col items-start${message.role === 'user' ? ' w-auto max-w-[min(78%,680px)] max-compact:max-w-[88%] items-end self-end' : ' self-start'}${message.history ? '' : ' animate-[messageEnter_var(--duration-fast)_var(--ease)]'}`}>
-      <div className={`message-content max-w-full min-w-0 text-[14px] leading-[1.72] text-primary [overflow-wrap:anywhere] break-words${message.role === 'user' ? ' rounded-[12px_12px_3px_12px] border border-[color-mix(in_srgb,var(--accent)_26%,transparent)] bg-user-bubble px-3.5 py-2.5 font-medium whitespace-pre-wrap text-user-bubble-text shadow-[0_8px_20px_rgba(3,5,12,0.12)]' : ' w-full max-w-none pr-2'}${message.streaming ? ' streaming' : ''}`}>
+      <div className={`message-content max-w-full min-w-0 text-[13px] leading-[1.72] text-primary [overflow-wrap:anywhere] break-words${message.role === 'user' ? ' rounded-[12px_12px_3px_12px] border border-[color-mix(in_srgb,var(--accent)_26%,transparent)] bg-user-bubble px-3.5 py-2.5 font-medium whitespace-pre-wrap text-user-bubble-text shadow-[0_8px_20px_rgba(3,5,12,0.12)]' : ' w-full max-w-none pr-2'}${message.streaming ? ' streaming' : ''}`}>
         {message.role === 'assistant' && message.thinking ? (
           <ThinkingBlock content={message.thinking} streaming={message.streaming} />
         ) : null}
@@ -227,7 +198,7 @@ function MessageItem({
             {message.images.map((image, index) => (
               <img
                 key={`${message.id}-image-${index}`}
-                className="max-h-[200px] max-w-[240px] rounded-[10px] border border-line object-cover cursor-pointer transition-transform duration-[var(--duration-fast)] ease-[var(--ease)] hover:scale-[1.015] max-compact:max-w-[min(220px,72vw)]"
+                className="max-h-[200px] max-w-[240px] rounded-[8px] border border-line object-cover cursor-pointer transition-transform duration-[var(--duration-fast)] ease-[var(--ease)] hover:scale-[1.015] max-compact:max-w-[min(220px,72vw)]"
                 src={`data:${image.mimeType};base64,${image.data}`}
                 alt={`附件 ${index + 1}`}
               />
@@ -245,7 +216,7 @@ function MessageItem({
           {canCopy ? <CopyMessageButton text={message.content} /> : null}
           {canFork ? (
             <button
-              className="inline-flex h-[22px] w-6 items-center justify-center rounded-[5px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary"
+              className="inline-flex h-[22px] w-6 items-center justify-center rounded-[6px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary"
               type="button"
               aria-label="从这条消息分支出新会话"
               title="从这里分支：复制到此为止的对话为新会话"
@@ -256,7 +227,7 @@ function MessageItem({
           ) : null}
           {canRegenerate ? (
             <button
-              className="inline-flex h-[22px] w-6 items-center justify-center rounded-[5px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary"
+              className="inline-flex h-[22px] w-6 items-center justify-center rounded-[6px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary"
               type="button"
               aria-label="重新生成这条回复"
               title="重新生成（会重放上一条用户消息）"
@@ -266,13 +237,13 @@ function MessageItem({
             </button>
           ) : null}
           {canEdit ? (
-            <button className="inline-flex h-[22px] w-6 items-center justify-center rounded-[5px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary" type="button" aria-label="重新编辑这条消息" title="重新编辑并发送" onClick={() => onEdit?.(message)}>
+            <button className="inline-flex h-[22px] w-6 items-center justify-center rounded-[6px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary" type="button" aria-label="重新编辑这条消息" title="重新编辑并发送" onClick={() => onEdit?.(message)}>
               <PenLine size={12} />
             </button>
           ) : null}
           {canDelete ? (
             <button
-              className="inline-flex h-[22px] w-6 items-center justify-center rounded-[5px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-[color-mix(in_srgb,var(--error)_10%,transparent)] hover:text-error disabled:opacity-[0.35] disabled:cursor-wait"
+              className="inline-flex h-[22px] w-6 items-center justify-center rounded-[6px] border-0 bg-transparent text-dim cursor-pointer transition-[color,background-color] duration-[var(--duration-fast)] hover:bg-[color-mix(in_srgb,var(--error)_10%,transparent)] hover:text-error disabled:opacity-[0.35] disabled:cursor-wait"
               type="button"
               aria-label="删除这条消息"
               title="删除这条消息"
@@ -291,7 +262,7 @@ function MessageItem({
           ) : null}
         </div>
       ) : null}
-      {hasUsage ? <span className="mt-1.5 block font-mono text-[10px] leading-[1.35] whitespace-nowrap text-dim tabular-nums">{usageText(message.usage)}</span> : null}
+      {hasUsage ? <span className="mt-1.5 block font-mono text-[11px] leading-[1.35] whitespace-nowrap text-dim tabular-nums">{usageText(message.usage)}</span> : null}
     </div>
   );
 }
@@ -393,29 +364,29 @@ function SubagentChildRow({ child }: { child: SubagentChild }) {
           }
         }}
       >
-        <span className={`h-1.5 w-1.5 flex-none rounded-full${child.status === 'running' ? ' bg-accent animate-[subagent-pulse_1.4s_ease-in-out_infinite]' : child.status === 'completed' ? ' bg-success' : child.status === 'failed' ? ' bg-error' : child.status === 'detached' ? ' bg-warning' : ' bg-ghost'}`} aria-hidden="true" />
-        <span className="font-mono text-[11px] leading-[1.4] font-semibold text-primary">{child.agent}</span>
-        {child.phase ? <span className="rounded-full border border-line px-1.5 py-px text-[9px] text-dim">{child.phase}</span> : null}
-        <span className="ml-auto flex-none text-[9px] text-dim">{subagentStatusLabel(child.status)}</span>
+        <span className={`h-1.5 w-1.5 flex-none rounded-full${child.status === 'running' ? ' bg-accent animate-[workbenchPulse_1.4s_ease-in-out_infinite]' : child.status === 'completed' ? ' bg-success' : child.status === 'failed' ? ' bg-error' : child.status === 'detached' ? ' bg-warning' : ' bg-ghost'}`} aria-hidden="true" />
+        <span className="font-mono text-[11px] leading-[1.4] font-medium text-primary">{child.agent}</span>
+        {child.phase ? <span className="rounded-full border border-line px-1.5 py-px text-[11px] text-dim">{child.phase}</span> : null}
+        <span className="ml-auto flex-none text-[11px] text-dim">{subagentStatusLabel(child.status)}</span>
       </div>
-      {child.task ? <div className="mt-1 overflow-hidden text-[10px] leading-[1.55] text-secondary line-clamp-2">{child.task}</div> : null}
+      {child.task ? <div className="mt-1 overflow-hidden text-[11px] leading-[1.55] text-secondary line-clamp-2">{child.task}</div> : null}
       {child.status === 'running' && child.currentTool ? (
-        <div className="mt-[5px] flex items-center gap-1.5 font-mono text-[10px] leading-[1.5] text-accent-text">
-          <span className="h-[5px] w-[5px] flex-none rounded-full bg-accent animate-[subagent-pulse_1.4s_ease-in-out_infinite]" aria-hidden="true" />
+        <div className="mt-[5px] flex items-center gap-1.5 font-mono text-[11px] leading-[1.5] text-accent-text">
+          <span className="h-[5px] w-[5px] flex-none rounded-full bg-accent animate-[workbenchPulse_1.4s_ease-in-out_infinite]" aria-hidden="true" />
           {child.currentTool}
           {child.currentToolArgs ? <em className="min-w-0 overflow-hidden text-dim not-italic text-ellipsis whitespace-nowrap">{child.currentToolArgs}</em> : null}
         </div>
       ) : null}
-      {metrics.length ? <div className="mt-[5px] text-[9px] text-dim">{metrics.join(' · ')}</div> : null}
-      {child.error ? <div className="mt-[5px] text-[10px] leading-[1.5] text-error break-words">{child.error}</div> : null}
+      {metrics.length ? <div className="mt-[5px] text-[11px] text-dim">{metrics.join(' · ')}</div> : null}
+      {child.error ? <div className="mt-[5px] text-[11px] leading-[1.5] text-error break-words">{child.error}</div> : null}
       {open ? (
         <div className="mt-2 border-t border-line pt-2">
           {child.recentTools.length ? (
-            <ul className="mb-[7px] m-0 list-disc pl-3.5 font-mono text-[9px] leading-[1.7] text-dim">
+            <ul className="mb-[7px] m-0 list-disc pl-3.5 font-mono text-[11px] leading-[1.7] text-dim">
               {child.recentTools.slice(-8).map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
             </ul>
           ) : null}
-          {child.output ? <div className="max-h-[240px] overflow-auto text-[10px] leading-[1.6] text-secondary whitespace-pre-wrap break-words">{child.output}</div> : null}
+          {child.output ? <div className="max-h-[240px] overflow-auto text-[11px] leading-[1.6] text-secondary whitespace-pre-wrap break-words">{child.output}</div> : null}
         </div>
       ) : null}
     </div>
@@ -448,9 +419,9 @@ function SubagentCard({ tool }: { tool: ToolExecution }) {
   ].filter(Boolean);
 
   return (
-    <div className={`w-full shrink-0 my-[3px] overflow-hidden rounded-lg border bg-[color-mix(in_srgb,var(--accent)_4%,var(--tool-bg))] text-secondary transition-[border-color] duration-[var(--duration-fast)] hover:border-line-hover${tool.history ? '' : ' animate-[messageEnter_var(--duration-fast)_var(--ease)]'}${running ? ' border-[color-mix(in_srgb,var(--accent)_44%,var(--border))]' : ' border-[color-mix(in_srgb,var(--accent)_26%,var(--border))]'}`} data-tool-call-id={tool.toolCallId}>
+    <div className={`w-full shrink-0 my-[3px] overflow-hidden rounded-[8px] border bg-tool text-secondary transition-[border-color] duration-[var(--duration-fast)] hover:border-line-hover${tool.history ? '' : ' animate-[messageEnter_var(--duration-fast)_var(--ease)]'}${running ? ' border-accent' : ' border-line'}`} data-tool-call-id={tool.toolCallId}>
       <div
-        className="group/header flex min-h-[38px] items-center justify-between gap-2.5 px-[9px] py-[7px] cursor-pointer hover:bg-glass"
+        className="group/header flex min-h-[38px] items-center justify-between gap-2.5 px-[9px] py-[7px] cursor-pointer hover:"
         role="button"
         tabIndex={0}
         onClick={() => setExpanded((value) => !value)}
@@ -466,15 +437,15 @@ function SubagentCard({ tool }: { tool: ToolExecution }) {
             <ChevronRight size={9} aria-hidden="true" />
           </span>
           <Brain size={13} className="flex-none text-accent-text" />
-          <span className="flex-none font-mono text-[10px] leading-[1.4] font-semibold text-accent-text">子代理</span>
-          <span className="flex-none text-[10px] text-secondary">{subagentModeLabel(run)}</span>
-          {run.async ? <span className="flex-none rounded-full border border-line px-1.5 py-px text-[9px] text-dim">后台</span> : null}
-          {run.timedOut ? <span className="flex-none rounded-full border border-[color-mix(in_srgb,var(--warning)_32%,var(--border))] px-1.5 py-px text-[9px] text-warning">超时</span> : null}
-          {run.stopped ? <span className="flex-none rounded-full border border-[color-mix(in_srgb,var(--warning)_32%,var(--border))] px-1.5 py-px text-[9px] text-warning">已停止</span> : null}
+          <span className="flex-none font-mono text-[11px] leading-[1.4] font-medium text-accent-text">子代理</span>
+          <span className="flex-none text-[11px] text-secondary">{subagentModeLabel(run)}</span>
+          {run.async ? <span className="flex-none rounded-full border border-line px-1.5 py-px text-[11px] text-dim">后台</span> : null}
+          {run.timedOut ? <span className="flex-none rounded-full border border-[color-mix(in_srgb,var(--warning)_32%,var(--border))] px-1.5 py-px text-[11px] text-warning">超时</span> : null}
+          {run.stopped ? <span className="flex-none rounded-full border border-[color-mix(in_srgb,var(--warning)_32%,var(--border))] px-1.5 py-px text-[11px] text-warning">已停止</span> : null}
         </span>
         <span className="flex min-w-0 items-center gap-[7px]">
-          {summary.length ? <span className="overflow-hidden text-[9px] text-dim text-ellipsis whitespace-nowrap">{summary.join(' · ')}</span> : null}
-          <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] whitespace-nowrap ${tool.status === 'streaming' ? 'border-accent-subtle text-accent-text' : tool.status === 'complete' ? 'border-[color-mix(in_srgb,var(--success)_25%,var(--border))] text-success' : tool.status === 'error' ? 'border-[color-mix(in_srgb,var(--error)_25%,var(--border))] text-error' : 'border-line text-dim'}`}>
+          {summary.length ? <span className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">{summary.join(' · ')}</span> : null}
+          <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] whitespace-nowrap ${tool.status === 'streaming' ? 'border-accent-subtle text-accent-text' : tool.status === 'complete' ? 'border-[color-mix(in_srgb,var(--success)_25%,var(--border))] text-success' : tool.status === 'error' ? 'border-[color-mix(in_srgb,var(--error)_25%,var(--border))] text-error' : 'border-line text-dim'}`}>
             {{ pending: '等待中', streaming: '执行中', complete: '已完成', error: '失败' }[tool.status]}
           </span>
         </span>
@@ -485,8 +456,8 @@ function SubagentCard({ tool }: { tool: ToolExecution }) {
             {run.children.map((child) => <SubagentChildRow key={`${child.index}-${child.agent}`} child={child} />)}
           </div>
         ) : null}
-        {!run.live && running ? <div className="px-[11px] py-[9px] text-[10px] text-dim">正在启动子代理…</div> : null}
-        {run.asyncId ? <div className="px-[11px] py-[9px] text-[10px] text-dim">后台运行 ID：<code className="font-mono text-[10px] leading-[1.5]">{run.asyncId}</code></div> : null}
+        {!run.live && running ? <div className="px-[11px] py-[9px] text-[11px] text-dim">正在启动子代理…</div> : null}
+        {run.asyncId ? <div className="px-[11px] py-[9px] text-[11px] text-dim">后台运行 ID：<code className="font-mono text-[11px] leading-[1.5]">{run.asyncId}</code></div> : null}
         {/* Show the raw result unless every child already carries its own output (live runs). */}
         {tool.output && !run.children.some((child) => child.output) ? <ToolOutput output={tool.output} /> : null}
       </div>
@@ -528,7 +499,7 @@ function ToolCard({ tool }: { tool: ToolExecution }) {
     const oldText = String(tool.args.oldText || tool.args.old_text || '');
     const newText = String(tool.args.newText || tool.args.new_text || '');
     return (
-      <div className="overflow-x-auto py-[7px] font-mono text-[10px] leading-[1.55]">
+      <div className="overflow-x-auto py-[7px] font-mono text-[11px] leading-[1.55]">
         {oldText.split('\n').map((line, index) => (
           <div className="min-h-[18px] bg-[rgba(255,107,122,0.08)] px-2.5 text-[color-mix(in_srgb,var(--error)_80%,var(--text-primary))] whitespace-pre-wrap" key={`old-${index}`}>- {line}</div>
         ))}
@@ -540,9 +511,9 @@ function ToolCard({ tool }: { tool: ToolExecution }) {
   }, [isEdit, tool.args]);
 
   return (
-    <div className={`w-full shrink-0 my-[3px] overflow-hidden rounded-lg border text-secondary transition-[border-color] duration-[var(--duration-fast)] hover:border-line-hover${tool.history ? '' : ' animate-[messageEnter_var(--duration-fast)_var(--ease)]'}${terminalTool ? ' border-[color-mix(in_srgb,var(--tool-accent)_20%,var(--border))] bg-[color-mix(in_srgb,var(--tool-bg)_82%,var(--bg-panel))]' : ' border-line bg-[color-mix(in_srgb,var(--tool-bg)_88%,var(--bg-panel))]'}`} data-tool-call-id={tool.toolCallId}>
+    <div className={`w-full shrink-0 my-[3px] overflow-hidden rounded-[8px] border text-secondary transition-[border-color] duration-[var(--duration-fast)] hover:border-line-hover${tool.history ? '' : ' animate-[messageEnter_var(--duration-fast)_var(--ease)]'}${terminalTool ? ' border-line-bright bg-tool' : ' border-line bg-tool'}`} data-tool-call-id={tool.toolCallId}>
       <div
-        className="group/header flex min-h-[38px] items-center justify-between gap-2.5 px-[9px] py-[7px] cursor-pointer hover:bg-glass"
+        className="group/header flex min-h-[38px] items-center justify-between gap-2.5 px-[9px] py-[7px] cursor-pointer hover:"
         role="button"
         tabIndex={0}
         onClick={() => setExpanded((value) => !value)}
@@ -557,9 +528,9 @@ function ToolCard({ tool }: { tool: ToolExecution }) {
           <span className={`inline-flex text-ghost transition-transform duration-[var(--duration-fast)]${expanded ? ' rotate-90' : ''}`}>
             <ChevronRight size={9} aria-hidden="true" />
           </span>
-          <span className="flex-none font-mono text-[10px] leading-[1.4] font-semibold text-tool-accent-text">{tool.toolName}</span>
+          <span className="flex-none font-mono text-[11px] leading-[1.4] font-medium text-tool-accent-text">{tool.toolName}</span>
           {argumentPreview(tool.args) ? (
-            <span className="overflow-hidden font-mono text-[10px] leading-[1.4] text-dim text-ellipsis whitespace-nowrap max-compact:max-w-[36vw]">{argumentPreview(tool.args)}</span>
+            <span className="overflow-hidden font-mono text-[11px] leading-[1.4] text-dim text-ellipsis whitespace-nowrap max-compact:max-w-[36vw]">{argumentPreview(tool.args)}</span>
           ) : null}
         </span>
         <span className="flex min-w-0 items-center gap-[7px]">
@@ -575,16 +546,16 @@ function ToolCard({ tool }: { tool: ToolExecution }) {
           >
             <Copy size={13} />
           </button>
-          <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] whitespace-nowrap ${tool.status === 'streaming' ? 'border-accent-subtle text-accent-text' : tool.status === 'complete' ? 'border-[color-mix(in_srgb,var(--success)_25%,var(--border))] text-success' : tool.status === 'error' ? 'border-[color-mix(in_srgb,var(--error)_25%,var(--border))] text-error' : 'border-line text-dim'}`}>{statusLabel}</span>
+          <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] whitespace-nowrap ${tool.status === 'streaming' ? 'border-accent-subtle text-accent-text' : tool.status === 'complete' ? 'border-[color-mix(in_srgb,var(--success)_25%,var(--border))] text-success' : tool.status === 'error' ? 'border-[color-mix(in_srgb,var(--error)_25%,var(--border))] text-error' : 'border-line text-dim'}`}>{statusLabel}</span>
         </span>
       </div>
       <div data-expanded={expanded} className={`${expanded ? 'block' : 'hidden'} border-t border-line`}>
         {diff}
         {terminalTool && command ? (
-          <div className="grid grid-cols-[12px_minmax(0,1fr)] gap-[5px] border-b border-line bg-glass px-[11px] py-[9px] font-mono text-[10px] leading-[1.5] text-accent-text"><span>$</span><code className="overflow-x-auto text-secondary whitespace-pre-wrap break-words">{command}</code></div>
+          <div className="grid grid-cols-[12px_minmax(0,1fr)] gap-[5px] border-b border-line px-[11px] py-[9px] font-mono text-[11px] leading-[1.5] text-accent-text"><span>$</span><code className="overflow-x-auto text-secondary whitespace-pre-wrap break-words">{command}</code></div>
         ) : null}
         {!isEdit && !terminalTool && Object.keys(tool.args).length ? (
-          <div className="m-0 border-b border-line bg-glass px-[11px] py-2.5 overflow-auto font-mono text-[10px] leading-[1.55] text-dim whitespace-pre-wrap break-words">{JSON.stringify(tool.args, null, 2)}</div>
+          <div className="m-0 border-b border-line px-[11px] py-2.5 overflow-auto font-mono text-[11px] leading-[1.55] text-dim whitespace-pre-wrap break-words">{JSON.stringify(tool.args, null, 2)}</div>
         ) : null}
         <ToolOutput output={tool.output} terminal={terminalTool} />
       </div>
@@ -618,7 +589,7 @@ function ToolGroupCard({ items }: { items: readonly Extract<TimelineItem, { kind
   return (
     <div className="w-full shrink-0 my-[3px] overflow-hidden rounded-lg border text-secondary transition-[border-color] duration-[var(--duration-fast)] hover:border-line-hover border-[color-mix(in_srgb,var(--tool-accent)_20%,var(--border))] bg-[color-mix(in_srgb,var(--tool-bg)_82%,var(--bg-panel))]">
       <div
-        className="group/header flex min-h-[38px] items-center justify-between gap-2.5 px-[9px] py-[7px] cursor-pointer hover:bg-glass"
+        className="group/header flex min-h-[38px] items-center justify-between gap-2.5 px-[9px] py-[7px] cursor-pointer hover:"
         role="button"
         tabIndex={0}
         aria-expanded={open}
@@ -636,11 +607,11 @@ function ToolGroupCard({ items }: { items: readonly Extract<TimelineItem, { kind
             <ChevronRight size={9} aria-hidden="true" />
           </span>
           <Terminal size={13} className="flex-none text-accent-text" />
-          <span className="flex-none font-mono text-[10px] leading-[1.4] font-semibold text-accent-text">{title}</span>
-          {metrics.summary.length ? <span className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap">{metrics.summary.join(' · ')}</span> : null}
+          <span className="flex-none font-mono text-[11px] leading-[1.4] font-medium text-accent-text">{title}</span>
+          {metrics.summary.length ? <span className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">{metrics.summary.join(' · ')}</span> : null}
         </span>
-        <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] whitespace-nowrap ${metrics.busy ? 'border-accent-subtle text-accent-text' : metrics.failed ? 'border-[color-mix(in_srgb,var(--error)_25%,var(--border))] text-error' : 'border-[color-mix(in_srgb,var(--success)_25%,var(--border))] text-success'}`}>
-          {metrics.busy ? <span className="h-[5px] w-[5px] flex-none rounded-full bg-accent animate-[subagent-pulse_1.4s_ease-in-out_infinite]" aria-hidden="true" /> : null}
+        <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] whitespace-nowrap ${metrics.busy ? 'border-accent-subtle text-accent-text' : metrics.failed ? 'border-[color-mix(in_srgb,var(--error)_25%,var(--border))] text-error' : 'border-[color-mix(in_srgb,var(--success)_25%,var(--border))] text-success'}`}>
+          {metrics.busy ? <span className="h-[5px] w-[5px] flex-none rounded-full bg-accent animate-[workbenchPulse_1.4s_ease-in-out_infinite]" aria-hidden="true" /> : null}
           {metrics.busy ? '执行中' : metrics.failed ? `${metrics.failed} 条失败` : '完成'}
         </span>
       </div>
@@ -670,10 +641,10 @@ function ToolOutput({ output, terminal = false }: { output: string; terminal?: b
   if (!oversized || full) {
     return (
       <div className="min-w-0">
-        <div className={`${output ? '' : 'hidden'} m-0 px-[11px] py-2.5 overflow-auto font-mono text-[10px] leading-[1.55] text-secondary whitespace-pre-wrap break-words${terminal ? ' max-h-[220px]' : ''}`}>{output}</div>
+        <div className={`${output ? '' : 'hidden'} m-0 px-[11px] py-2.5 overflow-auto font-mono text-[11px] leading-[1.55] text-secondary whitespace-pre-wrap break-words${terminal ? ' max-h-[220px]' : ''}`}>{output}</div>
         {oversized ? (
           <div className="flex gap-2 border-t border-line px-2.5 py-1.5">
-            <button className="rounded-[var(--radius-pill)] border border-line bg-glass px-[9px] py-0.5 text-[10px] text-secondary hover:border-accent hover:text-accent-text" type="button" onClick={() => setFull(false)}>收起（共 {lines.length} 行）</button>
+            <button className="rounded-[var(--radius-pill)] border border-line px-[9px] py-0.5 text-[11px] text-secondary hover:border-accent hover:text-accent-text" type="button" onClick={() => setFull(false)}>收起（共 {lines.length} 行）</button>
           </div>
         ) : null}
       </div>
@@ -683,13 +654,13 @@ function ToolOutput({ output, terminal = false }: { output: string; terminal?: b
   const visible = lines.slice(-OUTPUT_LINE_LIMIT).join('\n').slice(-OUTPUT_CHAR_LIMIT);
   return (
     <div className="min-w-0">
-      <div className="border-b border-line px-2.5 py-1 text-[10px] text-dim">
+      <div className="border-b border-line px-2.5 py-1 text-[11px] text-dim">
         已省略前 {Math.max(0, lines.length - OUTPUT_LINE_LIMIT)} 行，显示最后 {Math.min(lines.length, OUTPUT_LINE_LIMIT)} 行
       </div>
-      <div className="m-0 px-[11px] py-2.5 overflow-auto font-mono text-[10px] leading-[1.55] text-secondary whitespace-pre-wrap break-words">{visible}</div>
+      <div className="m-0 px-[11px] py-2.5 overflow-auto font-mono text-[11px] leading-[1.55] text-secondary whitespace-pre-wrap break-words">{visible}</div>
       <div className="flex gap-2 border-t border-line px-2.5 py-1.5">
-        <button className="rounded-[var(--radius-pill)] border border-line bg-glass px-[9px] py-0.5 text-[10px] text-secondary hover:border-accent hover:text-accent-text" type="button" onClick={() => setFull(true)}>显示全部（{lines.length} 行）</button>
-        <button className="rounded-[var(--radius-pill)] border border-line bg-glass px-[9px] py-0.5 text-[10px] text-secondary hover:border-accent hover:text-accent-text" type="button" onClick={() => void navigator.clipboard.writeText(output)}>复制全部</button>
+        <button className="rounded-[var(--radius-pill)] border border-line px-[9px] py-0.5 text-[11px] text-secondary hover:border-accent hover:text-accent-text" type="button" onClick={() => setFull(true)}>显示全部（{lines.length} 行）</button>
+        <button className="rounded-[var(--radius-pill)] border border-line px-[9px] py-0.5 text-[11px] text-secondary hover:border-accent hover:text-accent-text" type="button" onClick={() => void navigator.clipboard.writeText(output)}>复制全部</button>
       </div>
     </div>
   );
@@ -781,20 +752,20 @@ function PermissionRequestCard({
   }, [responding, request.id, request.requestId, denyOption, onceOption, sessionOption]);
 
   return (
-    <section className="grid w-full grid-cols-[32px_minmax(0,1fr)] my-1 gap-[11px] rounded-xl border border-[color-mix(in_srgb,var(--warning)_32%,var(--border))] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--warning)_6%,var(--bg-panel)),var(--bg-panel)_64%)] p-[13px] shadow-sm animate-[messageEnter_var(--duration-fast)_var(--ease)] max-compact:grid-cols-[28px_minmax(0,1fr)] max-compact:gap-[9px] max-compact:p-[11px]" role="region" aria-label="Pi 工具执行授权">
-      <div className="grid h-8 w-8 place-items-center rounded-[9px] border border-[color-mix(in_srgb,var(--warning)_30%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_10%,var(--bg-muted))] text-warning max-compact:h-7 max-compact:w-7" aria-hidden="true"><ShieldCheck size={17} /></div>
+    <section className="grid w-full grid-cols-[32px_minmax(0,1fr)] my-1 gap-[11px] rounded-[12px] border border-[color-mix(in_srgb,var(--warning)_32%,var(--border))] bg-panel p-[13px] animate-[messageEnter_var(--duration-fast)_var(--ease)] max-compact:grid-cols-[28px_minmax(0,1fr)] max-compact:gap-[9px] max-compact:p-[11px]" role="region" aria-label="Pi 工具执行授权">
+      <div className="grid h-8 w-8 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--warning)_30%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_10%,var(--bg-muted))] text-warning max-compact:h-7 max-compact:w-7" aria-hidden="true"><ShieldCheck size={17} /></div>
       <div className="min-w-0">
         <div className="flex items-start justify-between gap-3 max-compact:gap-2">
           <div>
-            <span className="mb-[3px] block text-[9px] font-bold tracking-[0.08em] text-warning uppercase">需要你的确认</span>
-            <h3 className="m-0 text-[13px] font-semibold leading-[1.4] text-primary">允许 Pi {action}？</h3>
+            <span className="mb-[3px] block text-[11px] font-medium text-warning">需要你的确认</span>
+            <h3 className="m-0 text-[13px] font-medium leading-[1.4] text-primary">允许 Pi {action}？</h3>
           </div>
-          <span className={`mt-px inline-flex flex-none items-center gap-[5px] rounded-full border border-line px-[7px] py-[3px] text-[9px] whitespace-nowrap max-compact:hidden ${secondsLeft <= 30 ? 'border-transparent text-error! [&>span]:bg-error!' : 'text-dim'}`}>
+          <span className={`mt-px inline-flex flex-none items-center gap-[5px] rounded-full border border-line px-[7px] py-[3px] text-[11px] whitespace-nowrap max-compact:hidden ${secondsLeft <= 30 ? 'border-transparent text-error! [&>span]:bg-error!' : 'text-dim'}`}>
             <span className="h-[5px] w-[5px] rounded-full bg-warning shadow-[0_0_0_3px_color-mix(in_srgb,var(--warning)_13%,transparent)]" />{responding ? '已提交' : `${formatCountdown(secondsLeft)} 后自动拒绝`}
           </span>
         </div>
-        {detail ? <pre className="mt-2.5 max-h-[180px] overflow-auto rounded-lg border border-line bg-[color-mix(in_srgb,var(--bg-solid)_54%,var(--bg-muted))] px-2.5 py-[9px] font-mono text-[10px] leading-[1.55] text-secondary whitespace-pre-wrap break-words [word-break:break-word]"><code className="[font:inherit]">{detail}</code></pre> : null}
-        <p className="mt-2 mb-0 text-[10px] leading-[1.5] text-dim">
+        {detail ? <pre className="mt-2.5 max-h-[180px] overflow-auto rounded-lg border border-line bg-[color-mix(in_srgb,var(--bg-solid)_54%,var(--bg-muted))] px-2.5 py-[9px] font-mono text-[11px] leading-[1.55] text-secondary whitespace-pre-wrap break-words [word-break:break-word]"><code className="[font:inherit]">{detail}</code></pre> : null}
+        <p className="mt-2 mb-0 text-[11px] leading-[1.5] text-dim">
           授权仅作用于当前操作；“本会话允许”只覆盖<strong>当前会话</strong>内的同一命令族或同一文件，换会话即失效。
         </p>
         <div className="mt-[11px] flex flex-wrap justify-end gap-[7px] max-compact:grid max-compact:grid-cols-2">
@@ -813,7 +784,7 @@ function PermissionRequestCard({
                 : '';
             return (
               <button
-                className={`min-h-[31px] rounded-lg border border-line bg-muted px-[11px] text-[10px] font-semibold text-secondary cursor-pointer transition-[border-color,background-color,color,transform] duration-[var(--duration-fast)] enabled:hover:-translate-y-px enabled:hover:border-line-hover enabled:hover:bg-elevated enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50 ${kindClasses}`}
+                className={`min-h-[31px] rounded-lg border border-line bg-muted px-[11px] text-[11px] font-medium text-secondary cursor-pointer transition-[border-color,background-color,color,transform] duration-[var(--duration-fast)] enabled:hover:-translate-y-px enabled:hover:border-line-hover enabled:hover:bg-elevated enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50 ${kindClasses}`}
                 type="button"
                 disabled={responding}
                 key={label}
@@ -821,7 +792,7 @@ function PermissionRequestCard({
                 onClick={() => respond(option)}
               >
                 {displayLabel}
-                <kbd className="ml-2 inline-flex h-4 items-center rounded-[4px] border border-line px-1 text-[9px] leading-none opacity-[0.62]" aria-hidden="true">{kind === 'deny' ? 'Esc' : kind === 'session' ? 'Ctrl+Shift+Enter' : 'Ctrl+Enter'}</kbd>
+                <kbd className="ml-2 inline-flex h-4 items-center rounded-[6px] border border-line px-1 text-[11px] leading-none opacity-[0.62]" aria-hidden="true">{kind === 'deny' ? 'Esc' : kind === 'session' ? 'Ctrl+Shift+Enter' : 'Ctrl+Enter'}</kbd>
               </button>
             );
           })}
@@ -1006,7 +977,7 @@ export function MessageList({
   return (
     <div className="relative flex min-h-0 flex-auto flex-col [--conversation-rail-offset:max(18px,calc((100%_-_var(--content-max-width))/2_-_36px))]">
       {switching ? (
-        <div className="pointer-events-none absolute left-1/2 top-[calc(var(--header-height)_+_10px)] z-40 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-line-hover bg-elevated px-3 py-1.5 text-[11px] font-semibold text-secondary shadow-md animate-[toastEnter_var(--duration)_var(--ease)]" role="status" aria-live="polite">
+        <div className="pointer-events-none absolute left-1/2 top-[calc(var(--header-height)_+_10px)] z-40 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-line-hover bg-elevated px-3 py-1.5 text-[11px] font-medium text-secondary shadow-md animate-[toastEnter_var(--duration)_var(--ease)]" role="status" aria-live="polite">
           <span className="h-3 w-3 rounded-full border-[1.5px] border-line border-t-accent animate-[workbenchSpin_0.8s_linear_infinite]" aria-hidden="true" />
           <span>正在切换会话…</span>
         </div>
@@ -1073,7 +1044,7 @@ export function MessageList({
               onClick={() => scrollToConversation(message.id)}
             >
               <span className={`block h-0.5 rounded-full transition-[width,background-color,opacity] duration-[var(--duration-fast)] group-hover:w-[17px] group-hover:bg-accent-text group-hover:opacity-100 group-focus-visible:w-[17px] group-focus-visible:bg-accent-text group-focus-visible:opacity-100 ${message.id === activeConversationId ? 'w-3.5 bg-accent opacity-100' : 'w-2 bg-line-hover opacity-55'}`} aria-hidden="true" />
-              <span className="pointer-events-none absolute right-[25px] top-1/2 block w-max max-w-[min(260px,calc(100vw_-_88px))] overflow-hidden rounded-[7px] border border-line-hover bg-[color-mix(in_srgb,var(--bg-elevated)_94%,transparent)] px-[9px] py-[7px] text-left text-[10px] leading-[1.35] text-secondary opacity-0 shadow-sm text-ellipsis whitespace-nowrap translate-x-[3px] -translate-y-1/2 transition-[opacity,transform] duration-[var(--duration-fast)] group-hover:translate-y-[-50%] group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-y-[-50%] group-focus-visible:opacity-100" role="tooltip">{conversationPreview(message)}</span>
+              <span className="pointer-events-none absolute right-[25px] top-1/2 block w-max max-w-[min(260px,calc(100vw_-_88px))] overflow-hidden rounded-[6px] border border-line-hover bg-[color-mix(in_srgb,var(--bg-elevated)_94%,transparent)] px-[9px] py-[7px] text-left text-[11px] leading-[1.35] text-secondary opacity-0 text-ellipsis whitespace-nowrap translate-x-[3px] -translate-y-1/2 transition-[opacity,transform] duration-[var(--duration-fast)] group-hover:translate-y-[-50%] group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-y-[-50%] group-focus-visible:opacity-100" role="tooltip">{conversationPreview(message)}</span>
             </button>
           ))}
         </nav>
@@ -1092,10 +1063,10 @@ export function MessageList({
           setNewMessage(false);
         }}
       >
-        <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-[7px] py-0.5 text-[9px] font-semibold text-white whitespace-nowrap${newMessage ? '' : ' hidden'}`}>有新消息</span>
+        <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-[7px] py-0.5 text-[11px] font-medium text-white whitespace-nowrap${newMessage ? '' : ' hidden'}`}>有新消息</span>
         <span className="inline-flex items-center justify-center"><ArrowDown size={16} /></span>
       </button>
-      <div className={`absolute bottom-2.5 left-[max(24px,calc((100%_-_var(--content-max-width))/2))] h-2.5 w-9 rounded-full bg-[radial-gradient(circle_at_20%_50%,var(--accent)_0_2px,transparent_2.5px),radial-gradient(circle_at_50%_50%,var(--accent)_0_2px,transparent_2.5px),radial-gradient(circle_at_80%_50%,var(--accent)_0_2px,transparent_2.5px)] opacity-75 animate-[workbenchPulse_1.2s_ease-in-out_infinite] max-compact:left-[15px] max-compact:bottom-2${streaming && !permissionRequest ? '' : ' hidden'}`} aria-hidden={!streaming || Boolean(permissionRequest)} />
+      <div className={`absolute bottom-2.5 left-[max(24px,calc((100%_-_var(--content-max-width))/2))] h-1.5 w-1.5 rounded-full bg-accent animate-[workbenchPulse_1.4s_ease-in-out_infinite] max-compact:left-[15px] max-compact:bottom-2${streaming && !permissionRequest ? '' : ' hidden'}`} aria-hidden={!streaming || Boolean(permissionRequest)} />
     </div>
   );
 }

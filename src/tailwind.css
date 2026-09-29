@@ -13,9 +13,10 @@
   input:focus-visible, textarea:focus-visible, select:focus-visible { @apply outline-none; }
   html, body { @apply h-full w-full; }
   body {
-    @apply overflow-hidden bg-solid text-sm text-primary antialiased;
+    @apply overflow-hidden bg-solid text-primary antialiased;
     font-family: var(--app-font-sans);
-    letter-spacing: -0.006em;
+    font-size: var(--font-size-body);
+    letter-spacing: 0;
     line-height: 1.55;
   }
   h1, h2, h3, p, .hint, .message-content { @apply text-pretty; }
@@ -25,12 +26,13 @@
   button { @apply cursor-pointer appearance-none border-0 bg-transparent; }
   button:disabled { @apply cursor-not-allowed; }
   kbd {
-    @apply inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border border-line bg-glass px-[5px] py-0 font-mono text-[10px] leading-none text-dim;
-    border-bottom-color: var(--border-bright);
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded-[6px] border border-line px-[5px] py-0 font-mono text-[11px] leading-none text-dim;
   }
   .hidden { @apply hidden!; }
+  /* Section label. Was an uppercase, letter-spaced 10px eyebrow; now a plain
+     secondary line — casing and tracking are never used for hierarchy. */
   .eyebrow {
-    @apply mb-[5px] block text-[10px] font-bold tracking-[.1em] text-dim uppercase;
+    @apply mb-[6px] block text-[12px] text-dim;
   }
 
   /* Keep one scrollbar treatment and one reduced-motion fallback for every
@@ -89,12 +91,21 @@
   --color-line: var(--border);
   --color-line-hover: var(--border-hover);
   --color-line-bright: var(--border-bright);
+  --color-divider: var(--divider);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-error: var(--error);
 
   --font-sans: var(--app-font-sans);
   --font-mono: var(--app-font-mono);
+
+  /* Type scale — five steps, two weights. Named utilities exist for CSS
+     modules; markup may also use the equivalent arbitrary value. */
+  --text-meta: var(--font-size-meta);
+  --text-label: var(--font-size-secondary);
+  --text-ui: var(--font-size-body);
+  --text-section: var(--font-size-section);
+  --text-page: var(--font-size-page);
 
   --radius-xs: var(--radius-xs);
   --radius-sm: var(--radius-sm);
@@ -119,16 +130,18 @@
 @custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
 @custom-variant app-dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* Animation keyframes referenced by `animate-[...]` utilities in markup. */
-@keyframes paletteEnter { from { opacity: 0; transform: translate(-50%, -8px) scale(.985); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
-@keyframes toastEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* Animation keyframes referenced by `animate-[...]` utilities in markup.
+   Motion is restricted to a short opacity + 2px settle, plus one running-state
+   pulse. Anything larger reads as decoration. */
+@keyframes paletteEnter { from { opacity: 0; transform: translate(-50%, -2px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes toastEnter { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 @keyframes workbenchPulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 @keyframes workbenchShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
-@keyframes contextMenuEnter { from { opacity: 0; transform: translateY(-3px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes contextMenuEnter { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
 @keyframes workbenchSpin { to { transform: rotate(360deg); } }
 @keyframes contentBlink { 50% { opacity: 0; } }
 @keyframes messageEnter {
-  from { opacity: 0; transform: translateY(3px); }
+  from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: none; }
 }
 @keyframes subagent-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); } }

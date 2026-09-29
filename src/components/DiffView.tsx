@@ -128,14 +128,14 @@ export function DiffView({ diff, className = '', hunkActions = [], onComment }: 
     <div className={`${className} flex flex-col py-2 font-mono text-[12px] leading-[1.6] whitespace-normal`}>
       {lines.map((line, index) => (
         <div
-          className={`group relative flex flex-wrap items-start min-h-[19px]${line.kind === 'add' ? ' bg-[color-mix(in_srgb,var(--success)_13%,transparent)]' : line.kind === 'del' ? ' bg-[color-mix(in_srgb,var(--error)_12%,transparent)]' : line.kind === 'hunk' ? ' bg-glass' : ''}`}
+          className={`group relative flex flex-wrap items-start min-h-[19px]${line.kind === 'add' ? ' bg-[color-mix(in_srgb,var(--success)_13%,transparent)]' : line.kind === 'del' ? ' bg-[color-mix(in_srgb,var(--error)_12%,transparent)]' : line.kind === 'hunk' ? ' ' : ''}`}
           key={`${index}-${line.text.slice(0, 12)}`}
         >
           <span className="w-10 shrink-0 select-none pr-2 text-right text-[11px] text-ghost" aria-hidden="true">{line.oldNumber ?? ''}</span>
           <span className="w-10 shrink-0 select-none pr-2 text-right text-[11px] text-ghost" aria-hidden="true">{line.newNumber ?? ''}</span>
           {onComment && line.kind !== 'meta' && line.kind !== 'hunk' ? (
             <button
-              className="absolute left-[76px] hidden h-[15px] w-[15px] items-center justify-center rounded-[4px] border-0 bg-accent p-0 leading-none text-white group-hover:flex"
+              className="absolute left-[76px] hidden h-[15px] w-[15px] items-center justify-center rounded-[6px] border-0 bg-accent p-0 leading-none text-white group-hover:flex"
               type="button"
               title="对这一行添加审阅意见"
               aria-label={`对第 ${line.newNumber ?? line.oldNumber ?? 0} 行添加审阅意见`}
@@ -153,7 +153,7 @@ export function DiffView({ diff, className = '', hunkActions = [], onComment }: 
             <span className="ml-auto inline-flex gap-1 pr-2">
               {hunkActions.map((action) => (
                 <button
-                  className="rounded-[var(--radius-pill)] border border-line bg-glass px-[7px] py-px text-[10px] text-dim hover:border-accent hover:text-accent-text"
+                  className="rounded-[var(--radius-pill)] border border-line px-[7px] py-px text-[11px] text-dim hover:border-accent hover:text-accent-text"
                   type="button"
                   key={action.label}
                   title={action.title}
@@ -174,7 +174,7 @@ export function DiffView({ diff, className = '', hunkActions = [], onComment }: 
                 rows={2}
                 value={draft}
                 placeholder="写下对这一行的意见，稍后一并发给 Pi"
-                className="w-full resize-y rounded-[8px] border border-line bg-panel p-2 text-xs text-primary outline-0 [font-family:inherit]"
+                className="w-full resize-y rounded-[8px] border border-line bg-panel p-2 text-[12px] text-primary outline-0 [font-family:inherit]"
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') { setCommenting(null); setDraft(''); }
@@ -182,8 +182,8 @@ export function DiffView({ diff, className = '', hunkActions = [], onComment }: 
                 }}
               />
               <div className="flex justify-end gap-2">
-                <button className="rounded-[7px] border border-line bg-glass px-2.5 py-[3px] text-[11px] text-secondary" type="button" onClick={() => { setCommenting(null); setDraft(''); }}>取消</button>
-                <button className="rounded-[7px] border border-accent bg-glass px-2.5 py-[3px] text-[11px] text-accent-text" type="button" disabled={!draft.trim()} onClick={() => submitComment(index)}>添加（Ctrl+Enter）</button>
+                <button className="rounded-[6px] border border-line px-2.5 py-[3px] text-[11px] text-secondary" type="button" onClick={() => { setCommenting(null); setDraft(''); }}>取消</button>
+                <button className="rounded-[6px] border border-accent px-2.5 py-[3px] text-[11px] text-accent-text" type="button" disabled={!draft.trim()} onClick={() => submitComment(index)}>添加（Ctrl+Enter）</button>
               </div>
             </div>
           ) : null}

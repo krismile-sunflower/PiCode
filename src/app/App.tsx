@@ -306,7 +306,7 @@ export function App() {
           aria-orientation="vertical"
           aria-label="调整会话栏宽度"
         />
-        <main className="main relative z-[1] flex h-full min-w-0 flex-[1_1_auto] flex-col overflow-hidden bg-canvas bg-[image:linear-gradient(rgba(226,232,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(226,232,255,0.025)_1px,transparent_1px)] bg-[length:32px_32px] light:bg-[image:linear-gradient(rgba(29,36,53,0.032)_1px,transparent_1px),linear-gradient(90deg,rgba(29,36,53,0.032)_1px,transparent_1px)]">
+        <main className="main relative z-[1] flex h-full min-w-0 flex-[1_1_auto] flex-col overflow-hidden bg-canvas">
           <Header
             snapshot={snapshot}
             sidebarOpen={sidebarOpen}

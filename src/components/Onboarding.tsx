@@ -59,7 +59,7 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <span className="eyebrow">开始使用 PiCode</span>
-            <strong className="block text-sm text-primary">三个决定，之后随时可改</strong>
+            <strong className="block text-[13px] text-primary">三个决定，之后随时可改</strong>
           </div>
           <button className="icon-btn" type="button" aria-label="跳过引导" onClick={finish}><X size={16} /></button>
         </div>
@@ -67,7 +67,7 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
         <ol className="onboarding-steps mb-4 flex list-none gap-3 p-0" aria-label="步骤">
           {['选模型', '选权限', '选工作方式'].map((label, index) => (
             <li className={`${index === step ? 'text-accent-text' : ''} flex items-center gap-1.5 text-[11px] text-dim`} key={label}>
-              <span className={`flex h-4 w-4 items-center justify-center rounded-full border text-[9px] ${index === step ? 'border-transparent! bg-accent! text-white!' : index < step ? 'border-transparent! bg-success! text-[#06281c]!' : 'border-line-bright'}`}>{index + 1}</span>{label}
+              <span className={`flex h-4 w-4 items-center justify-center rounded-full border text-[11px] ${index === step ? 'border-transparent! bg-accent! text-white!' : index < step ? 'border-transparent! bg-success! text-solid!' : 'border-line-bright'}`}>{index + 1}</span>{label}
             </li>
           ))}
         </ol>
@@ -79,18 +79,18 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
               <div className="grid max-h-[210px] grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-1.5 overflow-auto">
                 {models.map((model) => (
                   <button
-                    className={`flex flex-col items-start rounded-lg border bg-glass px-2.5 py-1.5 text-left text-[11px] text-primary${model.id === snapshot.currentModelId ? ' border-accent! bg-accent-subtle!' : ' border-line'}`}
+                    className={`flex flex-col items-start rounded-lg border px-2.5 py-1.5 text-left text-[11px] text-primary${model.id === snapshot.currentModelId ? ' border-accent! bg-accent-subtle!' : ' border-line'}`}
                     type="button"
                     key={`${model.provider || ''}:${model.id}`}
                     onClick={() => void controller.setModel(model)}
                   >
                     <span>{model.id}</span>
-                    {model.provider ? <small className="text-[9px] text-dim">{model.provider}</small> : null}
+                    {model.provider ? <small className="text-[11px] text-dim">{model.provider}</small> : null}
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="text-xs text-secondary">
+              <div className="text-[12px] text-secondary">
                 还没有可用模型。<button className="border-0 bg-transparent text-accent-text underline" type="button" onClick={() => { finish(); controller.setView('settings'); }}>去配置供应商</button>
               </div>
             )}
@@ -125,7 +125,7 @@ export function Onboarding({ snapshot }: { snapshot: AppSnapshot }) {
               {MODE_NOTES.map(([title, description]) => (
                 <div className="flex items-start gap-2 text-[11px] text-secondary" key={title}>
                   <Check size={13} />
-                  <div><strong className="block text-xs text-primary">{title}</strong><span>{description}</span></div>
+                  <div><strong className="block text-[12px] text-primary">{title}</strong><span>{description}</span></div>
                 </div>
               ))}
             </div>

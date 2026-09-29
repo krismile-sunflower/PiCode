@@ -32,6 +32,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: '/', label: '从任意位置聚焦输入框' },
       { keys: 'Enter', label: '发送' },
       { keys: 'Shift+Enter', label: '换行' },
+      { keys: 'Ctrl+V', label: '粘贴截图或拖入文件' },
       { keys: <><ArrowUp size={10} aria-hidden="true" /> / <ArrowDown size={10} aria-hidden="true" /></>, label: '回溯最近 50 条输入历史' },
       { keys: '/ + Tab', label: '补全斜杠命令' },
     ],
@@ -89,7 +90,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose(): voi
         aria-label="键盘快捷键"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-3.5 flex items-center justify-between text-sm text-primary">
+        <div className="mb-3.5 flex items-center justify-between text-[13px] text-primary">
           <strong>键盘快捷键</strong>
           <button className="icon-btn" type="button" ref={closeRef} aria-label="关闭" onClick={onClose}><X size={16} /></button>
         </div>
@@ -99,7 +100,7 @@ export function ShortcutsHelp({ open, onClose }: { open: boolean; onClose(): voi
               <div className="eyebrow mb-2">{group.title}</div>
               {group.items.map((item) => (
                 <div
-                  className="flex items-center justify-between gap-3 border-b border-line py-[5px] text-xs text-secondary last:border-b-0"
+                  className="flex items-center justify-between gap-3 border-b border-line py-[5px] text-[12px] text-secondary last:border-b-0"
                   key={`${group.title}-${item.keys}`}
                 >
                   <span>{item.label}</span>

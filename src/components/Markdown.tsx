@@ -40,8 +40,8 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
     window.setTimeout(() => setCopied(false), 1500);
   };
   return (
-    <div className="relative my-2 overflow-hidden rounded-[11px] border border-line bg-[var(--code-bg)]">
-      <div className="flex min-h-[34px] items-center justify-between border-b border-[var(--code-chrome-border)] bg-[var(--code-chrome-bg)] px-2.5 text-[9px] leading-none tracking-[0.04em] uppercase text-[var(--code-chrome-text)] [font-family:var(--app-font-mono)]">
+    <div className="relative my-2 overflow-hidden rounded-[12px] border border-line bg-[var(--code-bg)]">
+      <div className="flex min-h-[34px] items-center justify-between border-b border-[var(--code-chrome-border)] bg-[var(--code-chrome-bg)] px-2.5 text-[11px] leading-none text-[var(--code-chrome-text)] [font-family:var(--app-font-mono)]">
         <span>{language || 'code'}</span>
         <button className={`rounded-md border-0 bg-transparent px-[7px] py-1 text-inherit [font:inherit] cursor-pointer hover:bg-[var(--code-chrome-hover)] hover:text-[var(--code-chrome-text-hover)]${copied ? ' text-success' : ''}`} type="button" onClick={copy}>
           {copied ? '已复制' : '复制'}
@@ -64,7 +64,7 @@ const markdownComponents: Components = {
       {children}
     </a>
   ),
-  img: ({ alt, ...props }) => <img {...props} alt={alt || ''} className="inline-image mt-1.5 mb-1.5 max-w-full rounded-[10px] border border-line" />,
+  img: ({ alt, ...props }) => <img {...props} alt={alt || ''} className="inline-image mt-1.5 mb-1.5 max-w-full rounded-[8px] border border-line" />,
   pre: ({ children }) => {
     if (isValidElement(children)) {
       const element = children as ReactElement<{ className?: string; children?: ReactNode }>;
@@ -76,7 +76,7 @@ const markdownComponents: Components = {
   },
   code: ({ children, ...props }) => <code {...props}>{children}</code>,
   table: ({ children }) => (
-    <div className="table-wrapper mt-3 mb-3.5 max-w-full overflow-x-auto rounded-xl border border-line-hover bg-elevated shadow-sm">
+    <div className="table-wrapper mt-3 mb-3.5 max-w-full overflow-x-auto rounded-xl border border-line-hover bg-elevated">
       <table>{children}</table>
     </div>
   ),
@@ -99,7 +99,7 @@ export function CopyMessageButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      className={`mt-px inline-flex h-[22px] w-6 items-center justify-center rounded-[5px] border-0 bg-transparent text-dim opacity-100 cursor-pointer transition-[opacity,color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary group-hover:text-secondary focus-visible:text-secondary${copied ? ' text-success' : ''}`}
+      className={`mt-px inline-flex h-[22px] w-6 items-center justify-center rounded-[6px] border-0 bg-transparent text-dim opacity-100 cursor-pointer transition-[opacity,color,background-color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary group-hover:text-secondary focus-visible:text-secondary${copied ? ' text-success' : ''}`}
       type="button"
       aria-label="复制消息"
       onClick={async () => {

@@ -6,7 +6,7 @@
 /* Markdown typography inside assistant messages. */
 .message[data-role="assistant"] .message-content p { margin: 0 0 8px; }
 .message[data-role="assistant"] .message-content p:last-child { margin-bottom: 0; }
-.message[data-role="assistant"] .message-content strong { font-weight: 650; }
+.message[data-role="assistant"] .message-content strong { font-weight: 500; }
 .message[data-role="assistant"] .message-content em { @apply text-secondary italic; }
 .message[data-role="assistant"] .message-content a {
   @apply text-accent-text no-underline;
@@ -24,9 +24,9 @@
   @apply text-primary;
   letter-spacing: -.02em;
 }
-.message[data-role="assistant"] .message-content h1 { font-size: 18px; font-weight: 720; }
-.message[data-role="assistant"] .message-content h2 { font-size: 16px; font-weight: 680; }
-.message[data-role="assistant"] .message-content h3 { font-size: 14px; font-weight: 650; }
+.message[data-role="assistant"] .message-content h1 { font-size: 15px; font-weight: 500; }
+.message[data-role="assistant"] .message-content h2 { font-size: 13px; font-weight: 500; }
+.message[data-role="assistant"] .message-content h3 { font-size: 13px; font-weight: 500; }
 .message[data-role="assistant"] .message-content hr { margin: 14px 0; border: 0; border-top: 1px solid var(--border); }
 .message[data-role="assistant"] .message-content blockquote {
   margin: 8px 0;
@@ -57,7 +57,7 @@
   background: var(--bg-muted);
   @apply text-primary;
   font-size: 12px;
-  font-weight: 680;
+  font-weight: 500;
   @apply text-left;
   @apply whitespace-nowrap;
 }
@@ -80,10 +80,10 @@
 .message-content th:first-child { padding-left: 16px; }
 .message-content td:last-child,
 .message-content th:last-child { padding-right: 16px; }
-.message-content th:first-child { border-top-left-radius: 11px; }
-.message-content th:last-child { border-top-right-radius: 11px; }
-.message-content tr:last-child td:first-child { border-bottom-left-radius: 11px; }
-.message-content tr:last-child td:last-child { border-bottom-right-radius: 11px; }
+.message-content th:first-child { border-top-left-radius: 12px; }
+.message-content th:last-child { border-top-right-radius: 12px; }
+.message-content tr:last-child td:first-child { border-bottom-left-radius: 12px; }
+.message-content tr:last-child td:last-child { border-bottom-right-radius: 12px; }
 /* Keep table text fully opaque — never inherit dim/secondary colors */
 .message-content table code {
   @apply text-accent-text;
@@ -100,7 +100,7 @@
   @apply flex-none;
   @apply appearance-none;
   border: 1px solid var(--border-bright);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--bg-glass);
 }
 .task-list-item input[type="checkbox"]:checked { @apply border-accent; background: var(--accent); }
@@ -120,7 +120,7 @@
 .message-content :not(pre) > code {
   padding: 2px 5px;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--bg-glass-strong);
   @apply text-accent-text;
   font: .9em/1.4 var(--app-font-mono);
@@ -138,7 +138,7 @@
 .hljs-deletion { color: var(--code-deleted); }
 .hljs-addition { color: var(--code-added); }
 .hljs-emphasis { font-style: italic; }
-.hljs-strong { font-weight: 600; }
+.hljs-strong { font-weight: 500; }
 
 /* Streaming cursor appended to the message that is still being written. */
 .message-content.streaming::after {

@@ -1,79 +1,120 @@
 /* PiCode design tokens — dark (default) + light themes, code palette.
-   Source: workbench.css lines 1-141 (mechanical split, no rule changes). */
-/* PiCode workbench UI — semantic tokens and component overrides */
+
+   Visual language: flat, border-and-whitespace driven. Three background
+   layers, two border roles, three radii, two font weights. No glassmorphism,
+   no grid texture, no glow. Depth comes from the surface ladder plus a single
+   1px divider — never from decoration.
+
+   Variable names are intentionally unchanged from the previous revision so the
+   semantic Tailwind utilities in tailwind.css keep working; only the values
+   and the number of distinct steps changed. */
 :root {
   color-scheme: dark;
   --sidebar-width: 288px;
   --file-sidebar-width: 300px;
-  --header-height: 60px;
-  --composer-max-width: 760px;
-  --content-max-width: 760px;
-  --bg-solid: #0c0e12;
-  --bg-canvas: #10131a;
-  --bg-sidebar: #0d1016;
-  --bg-panel: #161a22;
-  --bg-elevated: #1b202a;
-  --bg-muted: #242b37;
-  --bg-glass: rgba(255, 255, 255, 0.032);
-  --bg-glass-hover: rgba(255, 255, 255, 0.065);
-  --bg-glass-active: rgba(135, 147, 248, 0.13);
-  --bg-glass-strong: rgba(255, 255, 255, 0.052);
-  --bg-frosted: #171b23;
-  --header-bg: rgba(13, 16, 22, 0.88);
-  --sidebar-bg-mobile: #0d1016;
-  --text-primary: #f4f5f8;
-  --text-secondary: #acb2c1;
-  --text-dim: #747d90;
-  --text-ghost: #4b5363;
-  --accent: #8793f8;
-  --accent-hover: #9fa9ff;
-  --accent-strong: #6d78e7;
-  --accent-text: #bbc2ff;
-  --accent-subtle: rgba(135, 147, 248, 0.13);
-  --accent-glow: rgba(135, 147, 248, 0.19);
-  --user-bubble: #202744;
-  --user-bubble-text: #f5f6ff;
-  --tool-accent: #9fa9ff;
-  --tool-accent-text: #c1c7ff;
-  --tool-bg: rgba(135, 147, 248, 0.065);
-  --thinking-accent: #8f9bb3;
-  --thinking-accent-text: #b4bdce;
-  --thinking-bg: rgba(143, 155, 179, 0.06);
-  --border: rgba(232, 237, 255, 0.075);
-  --border-hover: rgba(232, 237, 255, 0.15);
-  --border-bright: rgba(232, 237, 255, 0.24);
-  --success: #43d39e;
-  --warning: #f1b955;
-  --error: #ff6b7a;
-  --shadow-sm: 0 1px 2px rgba(2, 4, 8, 0.32);
-  --shadow-md: 0 14px 34px rgba(2, 4, 8, 0.27);
-  --shadow-lg: 0 28px 72px rgba(2, 4, 8, 0.42);
-  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.045);
-  --radius-xs: 4px;
-  --radius-sm: 7px;
-  --radius-md: 10px;
+  --header-height: 52px;
+  --composer-max-width: 720px;
+  --content-max-width: 720px;
+
+  /* Background ladder — 3 layers, wide enough to read without borders. */
+  --bg-app: #0a0b0e;        /* canvas + sidebar + body, one plane */
+  --bg-surface: #111318;    /* panels, cards, inputs */
+  --bg-overlay: #181a20;    /* dropdowns, dialogs, command palette */
+  --bg-solid: var(--bg-app);
+  --bg-canvas: var(--bg-app);
+  --bg-sidebar: var(--bg-app);
+  --bg-panel: var(--bg-surface);
+  --bg-elevated: var(--bg-overlay);
+  --bg-frosted: var(--bg-overlay);
+  --bg-muted: #1a1c22;
+
+  /* Glass is retired. Kept as transparent so any surviving `bg-glass` markup
+     renders flat instead of translucent. Hover fills stay real. */
+  --bg-glass: transparent;
+  --bg-glass-hover: rgba(255, 255, 255, 0.055);
+  --bg-glass-active: rgba(123, 135, 240, 0.14);
+  --bg-glass-strong: rgba(255, 255, 255, 0.06);
+  --header-bg: var(--bg-app);
+  --sidebar-bg-mobile: var(--bg-app);
+
+  /* Text ladder — brightened one step for legibility on the darker plane. */
+  --text-primary: #f7f8f8;
+  --text-secondary: #b0b7c4;
+  --text-dim: #7e8798;
+  --text-ghost: #545c6a;
+
+  /* Accent: indigo family, deepened. Allowed in four places only —
+     primary button, active nav indicator, focus ring, links. */
+  --accent: #7b87f0;
+  --accent-hover: #8f9aff;
+  --accent-strong: #5f6ad8;
+  --accent-text: #a8b1ff;
+  --accent-subtle: rgba(123, 135, 240, 0.12);
+  --accent-glow: rgba(0, 0, 0, 0);
+
+  /* Neutralized so user messages read as a plain surface, not a colored bubble. */
+  --user-bubble: #1a1c22;
+  --user-bubble-text: #f7f8f8;
+  --tool-accent: #9aa3f5;
+  --tool-accent-text: #aab3ff;
+  --tool-bg: rgba(255, 255, 255, 0.028);
+  --thinking-accent: #8b93a5;
+  --thinking-accent-text: #a6adbc;
+  --thinking-bg: transparent;
+
+  /* Borders: `divider` separates structure, `border` outlines controls. */
+  --divider: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --border-bright: rgba(255, 255, 255, 0.22);
+
+  --success: #3fbf8f;
+  --warning: #e0aa4e;
+  --error: #f0606f;
+
+  /* Elevation: only overlays cast. Cards never do. */
+  --shadow-sm: 0 0 0 0 transparent;
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.48);
+  --shadow-inset: 0 0 0 0 transparent;
+
+  /* Radii: 6 small controls, 8 inputs/buttons, 12 cards/overlays. */
+  --radius-xs: 6px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
   --radius: 12px;
-  --radius-lg: 16px;
+  --radius-lg: 12px;
   --radius-pill: 999px;
+
+  /* Type scale: 11 meta / 12 secondary / 13 body+UI / 15 section / 22 page.
+     Weights are 400 and 500 only. */
+  --font-size-meta: 11px;
+  --font-size-secondary: 12px;
+  --font-size-body: 13px;
+  --font-size-section: 15px;
+  --font-size-page: 22px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+
   --duration-fast: 120ms;
-  --duration: 180ms;
-  --duration-slow: 240ms;
+  --duration: 150ms;
+  --duration-slow: 200ms;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --spring: cubic-bezier(0.2, 0.9, 0.3, 1.2);
-  /* Single source of truth for type. Referenced by body, code surfaces and
-     Tailwind's --font-sans / --font-mono mapping in tailwind.css. System
-     stacks keep the desktop app offline-friendly; Cascadia Mono only hits
-     on Windows and falls back cleanly elsewhere. */
+  --spring: cubic-bezier(0.2, 0.9, 0.3, 1.05);
+
+  /* System stacks keep the desktop app offline-friendly; Cascadia Mono only
+     hits on Windows and falls back cleanly elsewhere. */
   --app-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", ui-sans-serif, sans-serif;
   --app-font-mono: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
   /* Code surface + syntax palette. Kept as tokens so the light theme is a real
      light surface instead of a dark block punched into the page. */
-  --code-bg: #0b0d11;
+  --code-bg: #0d0f13;
   --code-fg: #d7dceb;
-  --code-chrome-bg: rgba(255, 255, 255, 0.035);
+  --code-chrome-bg: rgba(255, 255, 255, 0.03);
   --code-chrome-border: rgba(255, 255, 255, 0.07);
-  --code-chrome-text: rgba(255, 255, 255, 0.48);
-  --code-chrome-text-hover: rgba(255, 255, 255, 0.78);
+  --code-chrome-text: rgba(255, 255, 255, 0.5);
+  --code-chrome-text-hover: rgba(255, 255, 255, 0.8);
   --code-chrome-hover: rgba(255, 255, 255, 0.07);
   --code-comment: #6b7487;
   --code-keyword: #c99bf5;
@@ -88,41 +129,47 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-solid: #f4f4f1;
-  --bg-canvas: #f7f7f4;
-  --bg-sidebar: #efefeb;
-  --bg-panel: #ffffff;
-  --bg-elevated: #ffffff;
-  --bg-muted: #e8e9e7;
-  --bg-glass: rgba(17, 24, 39, 0.035);
-  --bg-glass-hover: rgba(17, 24, 39, 0.065);
-  --bg-glass-active: rgba(89, 104, 232, 0.1);
+
+  --bg-app: #fbfbfa;
+  --bg-surface: #ffffff;
+  --bg-overlay: #ffffff;
+  --bg-muted: #f2f2f0;
+
+  --bg-glass: transparent;
+  --bg-glass-hover: rgba(17, 24, 39, 0.05);
+  --bg-glass-active: rgba(89, 104, 215, 0.1);
   --bg-glass-strong: rgba(17, 24, 39, 0.05);
-  --bg-frosted: #f8f8f5;
-  --header-bg: rgba(247, 247, 244, 0.88);
-  --sidebar-bg-mobile: #efefeb;
-  --text-primary: #171923;
-  --text-secondary: #596174;
-  --text-dim: #838b9d;
-  --text-ghost: #b8bec9;
+  --header-bg: var(--bg-app);
+  --sidebar-bg-mobile: var(--bg-app);
+
+  --text-primary: #16181d;
+  --text-secondary: #5b6273;
+  --text-dim: #858c9c;
+  --text-ghost: #b6bcc7;
+
   --accent: #5968d7;
-  --accent-hover: #4d5dc9;
+  --accent-hover: #4a59c8;
   --accent-strong: #4655ba;
   --accent-text: #4655ba;
-  --accent-subtle: rgba(89, 104, 215, 0.11);
-  --accent-glow: rgba(89, 104, 215, 0.16);
-  --user-bubble: #e8eaff;
-  --user-bubble-text: #252a60;
-  --tool-bg: rgba(89, 104, 215, 0.055);
-  --thinking-bg: rgba(89, 97, 116, 0.05);
-  --border: rgba(29, 36, 53, 0.09);
-  --border-hover: rgba(29, 36, 53, 0.16);
-  --border-bright: rgba(29, 36, 53, 0.24);
-  --shadow-sm: 0 1px 2px rgba(30, 35, 48, 0.07);
-  --shadow-md: 0 14px 34px rgba(30, 35, 48, 0.1);
-  --shadow-lg: 0 28px 72px rgba(30, 35, 48, 0.14);
-  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-  --code-bg: #f3f3ef;
+  --accent-subtle: rgba(89, 104, 215, 0.1);
+  --accent-glow: rgba(0, 0, 0, 0);
+
+  --user-bubble: #f2f2f0;
+  --user-bubble-text: #16181d;
+  --tool-bg: rgba(17, 24, 39, 0.025);
+  --thinking-bg: transparent;
+
+  --divider: rgba(24, 29, 40, 0.07);
+  --border: rgba(24, 29, 40, 0.1);
+  --border-hover: rgba(24, 29, 40, 0.18);
+  --border-bright: rgba(24, 29, 40, 0.28);
+
+  --shadow-sm: 0 0 0 0 transparent;
+  --shadow-md: 0 8px 24px rgba(24, 29, 40, 0.1);
+  --shadow-lg: 0 16px 48px rgba(24, 29, 40, 0.14);
+  --shadow-inset: 0 0 0 0 transparent;
+
+  --code-bg: #f4f4f1;
   --code-fg: #2b303c;
   --code-chrome-bg: rgba(17, 24, 39, 0.04);
   --code-chrome-border: rgba(17, 24, 39, 0.09);

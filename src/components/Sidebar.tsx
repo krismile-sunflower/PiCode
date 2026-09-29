@@ -196,7 +196,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
     const isArchived = archived.includes(session.filePath);
     return (
       <div
-        className={`group relative flex min-h-[33px] min-w-0 items-center gap-[7px] my-px rounded-[7px] border border-transparent py-1.5 pl-[11px] pr-[9px] cursor-pointer transition-[background-color,border-color] duration-[var(--duration-fast)] hover:bg-glass-hover focus-visible:border-accent focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--accent-subtle)] active:bg-muted${active ? ' bg-accent-subtle before:absolute before:inset-y-[6px] before:left-0 before:w-0.5 before:rounded-r-[2px] before:bg-accent before:content-[""]' : ''}${isArchived ? ' opacity-[0.76] hover:opacity-100' : ''}`}
+        className={`group relative flex min-h-[33px] min-w-0 items-center gap-[7px] my-px rounded-[6px] border border-transparent py-1.5 pl-[11px] pr-[9px] cursor-pointer transition-[background-color,border-color] duration-[var(--duration-fast)] hover:bg-glass-hover focus-visible:border-accent focus-visible:outline-none focus-visible:shadow-[0_0_0_2px_var(--accent-subtle)] active:bg-muted${active ? ' bg-accent-subtle before:absolute before:inset-y-[6px] before:left-0 before:w-0.5 before:rounded-r-[2px] before:bg-accent before:content-[""]' : ''}${isArchived ? ' opacity-[0.76] hover:opacity-100' : ''}`}
         data-file-path={session.filePath}
         role="button"
         tabIndex={0}
@@ -213,10 +213,10 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
           setContextMenu({ x: event.clientX, y: event.clientY, session, project });
         }}
       >
-        {favorites.includes(session.filePath) ? <span className="flex-none text-[10px] text-accent-text"><Star size={10} fill="currentColor" /></span> : null}
+        {favorites.includes(session.filePath) ? <span className="flex-none text-[11px] text-accent-text"><Star size={10} fill="currentColor" /></span> : null}
         {renaming === session.filePath ? (
           <input
-            className="w-full min-w-0 rounded-[7px] border border-accent bg-panel px-[7px] py-1 text-[13px] text-primary outline-0 shadow-[0_0_0_2px_var(--accent-subtle)]"
+            className="w-full min-w-0 rounded-[6px] border border-accent bg-panel px-[7px] py-1 text-[13px] text-primary outline-0 shadow-[0_0_0_2px_var(--accent-subtle)]"
             autoFocus
             defaultValue={sessionTitle(session)}
             onClick={(event) => event.stopPropagation()}
@@ -229,9 +229,9 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
           />
         ) : (
           <>
-            <span className={`min-w-0 flex-1 overflow-hidden text-[13px] leading-[1.45] text-primary text-ellipsis whitespace-nowrap ${active ? '[font-weight:660]' : '[font-weight:520]'}`} title={sessionTitle(session)}>{sessionTitle(session)}</span>
-            {session.live ? <span className="flex-none rounded-[4px] border border-[color-mix(in_srgb,var(--success)_30%,var(--border))] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] px-[5px] py-px text-[9px] font-bold tracking-[0.03em] text-success uppercase">live</span> : null}
-            {session.tmux ? <span className="flex-none rounded-[4px] border border-[color-mix(in_srgb,var(--accent)_30%,var(--border))] bg-accent-subtle px-[5px] py-px text-[9px] font-bold tracking-[0.03em] text-accent-text uppercase">tmux</span> : null}
+            <span className={`min-w-0 flex-1 overflow-hidden text-[13px] leading-[1.45] text-primary text-ellipsis whitespace-nowrap ${active ? '[font-weight:500]' : '[font-weight:500]'}`} title={sessionTitle(session)}>{sessionTitle(session)}</span>
+            {session.live ? <span className="flex-none rounded-[6px] border border-[color-mix(in_srgb,var(--success)_30%,var(--border))] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] px-[5px] py-px text-[11px] font-medium text-success">live</span> : null}
+            {session.tmux ? <span className="flex-none rounded-[6px] border border-[color-mix(in_srgb,var(--accent)_30%,var(--border))] bg-accent-subtle px-[5px] py-px text-[11px] font-medium text-accent-text">tmux</span> : null}
             <span className={`flex-none text-[11px] leading-[1.3] tabular-nums whitespace-nowrap ${active ? 'text-accent-text opacity-80' : 'text-ghost group-hover:text-dim'}`}>{formatRelativeTime(session.timestamp)}</span>
           </>
         )}
@@ -254,11 +254,11 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
 
   return (
     <>
-      <aside className={`relative z-[120] flex h-full w-(--sidebar-width) min-w-(--sidebar-width) flex-col overflow-hidden border-0 border-r border-r-line bg-[color-mix(in_srgb,var(--bg-sidebar)_94%,transparent)] [backdrop-filter:none] [transition:margin-left_var(--duration-slow)_var(--ease),transform_var(--duration-slow)_var(--ease)] max-compact:fixed! max-compact:top-0 max-compact:bottom-0 max-compact:left-0 max-compact:z-[310] max-compact:w-[min(var(--sidebar-width),88vw)]! max-compact:min-w-[min(var(--sidebar-width),88vw)]! max-compact:max-w-none! max-compact:shadow-lg max-compact:m-0!${open ? ' max-compact:translate-x-0' : ' -ml-[calc(var(--sidebar-width)_+_5px)] max-compact:ml-0! max-compact:translate-x-[-102%]'}`} id="sidebar" aria-label="会话导航">
+      <aside className={`relative z-[120] flex h-full w-(--sidebar-width) min-w-(--sidebar-width) flex-col overflow-hidden border-0 border-r border-r-line bg-sidebar [transition:margin-left_var(--duration-slow)_var(--ease),transform_var(--duration-slow)_var(--ease)] max-compact:fixed! max-compact:top-0 max-compact:bottom-0 max-compact:left-0 max-compact:z-[310] max-compact:w-[min(var(--sidebar-width),88vw)]! max-compact:min-w-[min(var(--sidebar-width),88vw)]! max-compact:max-w-none! max-compact:shadow-lg max-compact:m-0!${open ? ' max-compact:translate-x-0' : ' -ml-[calc(var(--sidebar-width)_+_5px)] max-compact:ml-0! max-compact:translate-x-[-102%]'}`} id="sidebar" aria-label="会话导航">
         <header className="flex min-h-(--header-height) items-center gap-1 border-b border-line pl-2 pr-1.5 [-webkit-app-region:drag]">
           <button className="workspace-chip group" type="button" title={`${workspaceLabel} · ${workspacePath}`} onClick={() => controller.setView('projects')}>
-            <img src="/icons/tau-192.png" alt="" className="h-[19px] w-[19px] flex-none rounded-[5px]" />
-            <span className="min-w-0 flex-1 overflow-hidden text-[14px] [font-weight:690] tracking-[-0.02em] text-ellipsis whitespace-nowrap">{workspaceLabel}</span>
+            <img src="/icons/tau-192.png" alt="" className="h-[19px] w-[19px] flex-none rounded-[6px]" />
+            <span className="min-w-0 flex-1 overflow-hidden text-[13px] [font-weight:500] text-ellipsis whitespace-nowrap">{workspaceLabel}</span>
             <ChevronRight size={13} className="flex-none rotate-90 text-ghost group-hover:text-secondary" />
           </button>
           <button className="icon-btn sidebar-collapse-btn max-compact:hidden!" type="button" onClick={onToggle} title={open ? '折叠会话栏' : '展开会话栏'} aria-expanded={open}>
@@ -267,11 +267,11 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
         </header>
 
         <div className="flex gap-[5px] px-[9px] pt-[9px] pb-2">
-          <label className="flex h-8 min-w-0 flex-1 items-center gap-[7px] rounded-lg border border-line bg-glass px-[9px] text-dim transition-[border-color,box-shadow,background-color,color] duration-[var(--duration-fast)] focus-within:border-accent focus-within:bg-panel focus-within:text-primary focus-within:shadow-[0_0_0_2px_var(--accent-subtle)]">
+          <label className="flex h-8 min-w-0 flex-1 items-center gap-[7px] rounded-lg border border-line px-[9px] text-dim transition-[border-color,box-shadow,background-color,color] duration-[var(--duration-fast)] focus-within:border-accent focus-within:bg-panel focus-within:text-primary focus-within:shadow-[0_0_0_2px_var(--accent-subtle)]">
             <Search size={13} />
             <input type="search" className="h-full w-full min-w-0 border-0 bg-transparent p-0 text-[13px] text-primary shadow-none outline-none placeholder:text-dim focus:border-0 focus:bg-transparent focus:shadow-none [&::-webkit-search-cancel-button]:hidden" placeholder="搜索会话" value={query} onChange={(event) => setQuery(event.target.value)} />
           </label>
-          <button className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-line bg-glass text-secondary cursor-pointer transition-[color,background-color,border-color,transform] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary active:scale-[0.94]" type="button" title="刷新会话" aria-label="刷新会话" onClick={() => void controller.loadSessions()}>
+          <button className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-line text-secondary cursor-pointer transition-[color,background-color,border-color,transform] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary active:scale-[0.94]" type="button" title="刷新会话" aria-label="刷新会话" onClick={() => void controller.loadSessions()}>
             <RotateCw size={14} />
           </button>
           <div className="relative flex items-center gap-px">
@@ -279,7 +279,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
               <Plus size={15} />
             </button>
             <button
-              className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-line bg-glass px-1 text-secondary cursor-pointer transition-[color,background-color,border-color,transform] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary active:scale-[0.94]"
+              className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-line px-1 text-secondary cursor-pointer transition-[color,background-color,border-color,transform] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary active:scale-[0.94]"
               type="button"
               title="选择新会话的工作方式"
               aria-label="选择新会话的工作方式"
@@ -291,16 +291,16 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
             {modeMenuOpen ? (
               <div className="absolute right-0 top-full z-[130] mt-1.5 flex w-[300px] flex-col gap-0.5 rounded-[var(--radius-md)] border border-line-hover bg-elevated p-[5px] shadow-md" onClick={(event) => event.stopPropagation()}>
                 <button className="group flex w-full items-start gap-[9px] rounded-lg border border-transparent bg-transparent px-[9px] py-2 text-left text-primary cursor-pointer transition-[background-color,border-color] duration-[var(--duration-fast)] hover:border-line hover:bg-glass-hover" type="button" onClick={() => { setModeMenuOpen(false); void controller.newSession(); }}>
-                  <span className="mt-px grid h-[26px] w-[26px] flex-none place-items-center rounded-[7px] bg-glass text-secondary transition-colors group-hover:bg-accent-subtle group-hover:text-accent-text"><PenLine size={12} /></span>
-                  <span className="flex min-w-0 flex-col gap-px text-left"><strong className="text-[12.5px] font-semibold leading-[1.35] text-primary">直接改工作区</strong><small className="text-[10.5px] leading-[1.45] text-dim">Pi 直接修改当前项目文件</small></span>
+                  <span className="mt-px grid h-[26px] w-[26px] flex-none place-items-center rounded-[6px] text-secondary transition-colors group-hover:bg-accent-subtle group-hover:text-accent-text"><PenLine size={12} /></span>
+                  <span className="flex min-w-0 flex-col gap-px text-left"><strong className="text-[13px] font-medium leading-[1.35] text-primary">直接改工作区</strong><small className="text-[11px] leading-[1.45] text-dim">Pi 直接修改当前项目文件</small></span>
                 </button>
                 <button className="group flex w-full items-start gap-[9px] rounded-lg border border-transparent bg-transparent px-[9px] py-2 text-left text-primary cursor-pointer transition-[background-color,border-color] duration-[var(--duration-fast)] hover:border-line hover:bg-glass-hover" type="button" onClick={() => { setModeMenuOpen(false); void startIsolated(); }}>
-                  <span className="mt-px grid h-[26px] w-[26px] flex-none place-items-center rounded-[7px] bg-glass text-secondary transition-colors group-hover:bg-accent-subtle group-hover:text-accent-text"><GitBranch size={12} /></span>
-                  <span className="flex min-w-0 flex-col gap-px text-left"><strong className="text-[12.5px] font-semibold leading-[1.35] text-primary">独立副本（worktree）</strong><small className="text-[10.5px] leading-[1.45] text-dim">改动留在隔离检出中，可并行、审阅后再合并</small></span>
+                  <span className="mt-px grid h-[26px] w-[26px] flex-none place-items-center rounded-[6px] text-secondary transition-colors group-hover:bg-accent-subtle group-hover:text-accent-text"><GitBranch size={12} /></span>
+                  <span className="flex min-w-0 flex-col gap-px text-left"><strong className="text-[13px] font-medium leading-[1.35] text-primary">独立副本（worktree）</strong><small className="text-[11px] leading-[1.45] text-dim">改动留在隔离检出中，可并行、审阅后再合并</small></span>
                 </button>
                 <button className="group flex w-full items-start gap-[9px] rounded-lg border border-transparent bg-transparent px-[9px] py-2 text-left text-primary cursor-pointer transition-[background-color,border-color] duration-[var(--duration-fast)] hover:border-line hover:bg-glass-hover" type="button" onClick={() => { setModeMenuOpen(false); void controller.newResearchSession(); }}>
-                  <span className="mt-px grid h-[26px] w-[26px] flex-none place-items-center rounded-[7px] bg-glass text-secondary transition-colors group-hover:bg-accent-subtle group-hover:text-accent-text"><Eye size={12} /></span>
-                  <span className="flex min-w-0 flex-col gap-px text-left"><strong className="text-[12.5px] font-semibold leading-[1.35] text-primary">只读调研</strong><small className="text-[10.5px] leading-[1.45] text-dim">以计划模式开始，只读不改</small></span>
+                  <span className="mt-px grid h-[26px] w-[26px] flex-none place-items-center rounded-[6px] text-secondary transition-colors group-hover:bg-accent-subtle group-hover:text-accent-text"><Eye size={12} /></span>
+                  <span className="flex min-w-0 flex-col gap-px text-left"><strong className="text-[13px] font-medium leading-[1.35] text-primary">只读调研</strong><small className="text-[11px] leading-[1.45] text-dim">以计划模式开始，只读不改</small></span>
                 </button>
               </div>
             ) : null}
@@ -310,14 +310,14 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
         {liveInstances.length > 1 ? (
           <div className="border-b border-line px-2 pt-1 pb-2" aria-label="运行中的会话">
             <button
-              className="flex min-h-7 w-full cursor-pointer items-center gap-[7px] mb-[3px] rounded-md border-0 bg-transparent px-[9px] py-1 text-left text-[10px] font-bold tracking-[0.08em] text-dim uppercase select-none transition-[background-color,color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary"
+              className="flex min-h-7 w-full cursor-pointer items-center gap-[7px] mb-[3px] rounded-md border-0 bg-transparent px-[9px] py-1 text-left text-[11px] font-medium text-dim select-none transition-[background-color,color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary"
               type="button"
               aria-expanded={liveOpen}
               onClick={() => setLiveOpen((value) => !value)}
             >
               <span className={`inline-flex w-3 flex-none items-center justify-center text-[12px] leading-none text-secondary transition-transform duration-[var(--duration-fast)]${liveOpen ? '' : ' -rotate-90'}`} aria-hidden="true"><ChevronRight size={12} /></span>
               <span>运行中</span>
-              <span className="ml-auto min-w-4 rounded-[4px] bg-muted px-[5px] py-px text-center text-[10px] font-semibold text-dim tabular-nums">{liveInstances.length}</span>
+              <span className="ml-auto min-w-4 rounded-[6px] bg-muted px-[5px] py-px text-center text-[11px] font-medium text-dim tabular-nums">{liveInstances.length}</span>
             </button>
             {liveOpen ? liveInstances.map((instance) => {
               const path = instance.projectPath || instance.project_path || '';
@@ -325,11 +325,11 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
               const name = basename(path) || '无文件夹';
               return (
                 <div
-                  className={`group flex w-full items-center gap-1 rounded-[7px] px-2 py-1.5 text-[11px] text-secondary${active ? ' bg-glass-active text-accent-text' : ' hover:bg-glass-hover'}`}
+                  className={`group flex w-full items-center gap-1 rounded-[6px] px-2 py-1.5 text-[11px] text-secondary${active ? ' bg-glass-active text-accent-text' : ' hover:bg-glass-hover'}`}
                   key={instance.pid}
                 >
                   <button
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-[7px] border-0 bg-transparent p-0 text-left text-inherit cursor-pointer"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-[6px] border-0 bg-transparent p-0 text-left text-inherit cursor-pointer"
                     type="button"
                     title={active ? `${name} · 当前窗口连接的实例` : `切换到 ${name}`}
                     disabled={active}
@@ -338,12 +338,12 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
                     <span className={`h-1.5 w-1.5 shrink-0 rounded-full${active ? ' bg-accent-text' : ' bg-success'}`} />
                     <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{name}</span>
                   </button>
-                  <span className={`shrink-0 text-[10px] ${active ? 'text-accent-text' : 'text-dim'}`}>
+                  <span className={`shrink-0 text-[11px] ${active ? 'text-accent-text' : 'text-dim'}`}>
                     {active ? (snapshot.extensionUiRequest ? '等待授权' : snapshot.isStreaming ? '生成中' : '当前窗口') : '可切换'}
                   </span>
                   {!active ? (
                     <button
-                      className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-[5px] border-0 bg-transparent p-0 text-dim opacity-0 transition-[opacity,background-color,color] duration-[var(--duration-fast)] group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-[color-mix(in_srgb,var(--error)_10%,transparent)] hover:text-error focus-visible:opacity-100"
+                      className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-dim opacity-0 transition-[opacity,background-color,color] duration-[var(--duration-fast)] group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-[color-mix(in_srgb,var(--error)_10%,transparent)] hover:text-error focus-visible:opacity-100"
                       type="button"
                       aria-label={`停止 ${name} 的 Pi 实例`}
                       title={`停止 ${name} 的 Pi 实例`}
@@ -362,7 +362,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
           {/* Only show skeleton on first empty load — never flash over an existing list. */}
           {snapshot.sessionsLoading && snapshot.sessionProjects.length === 0 ? (
             Array.from({ length: 6 }, (_, index) => (
-              <div className="my-px flex min-h-[33px] items-center gap-2 py-1.5 pl-[11px] pr-[9px]" key={index}><div className="h-2.5 flex-1 rounded-[4px] bg-[linear-gradient(90deg,var(--bg-muted)_25%,var(--bg-elevated)_50%,var(--bg-muted)_75%)] bg-[length:200%_100%] animate-[workbenchShimmer_1.5s_infinite]" /><div className="h-2 w-7 flex-none rounded-[4px] bg-[linear-gradient(90deg,var(--bg-muted)_25%,var(--bg-elevated)_50%,var(--bg-muted)_75%)] bg-[length:200%_100%] animate-[workbenchShimmer_1.5s_infinite] [animation-delay:.12s]" /></div>
+              <div className="my-px flex min-h-[33px] items-center gap-2 py-1.5 pl-[11px] pr-[9px]" key={index}><div className="h-2.5 flex-1 rounded-[6px] bg-muted" /><div className="h-2 w-7 flex-none rounded-[6px] bg-muted" /></div>
             ))
           ) : null}
 
@@ -372,7 +372,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
               result sets from looking like one inconsistent list. */}
           {query && snapshot.sessionSearchResults.length ? (
             <div className="mb-3">
-              <div className="flex min-h-7 w-full cursor-default items-center gap-[7px] mb-[3px] rounded-md px-[9px] py-1 text-left text-[10px] font-bold tracking-[0.08em] text-accent-text uppercase select-none"><span>消息内容匹配</span><span className="ml-auto min-w-4 rounded-[4px] bg-muted px-[5px] py-px text-center text-[10px] font-semibold text-dim tabular-nums">{snapshot.sessionSearchResults.length}</span></div>
+              <div className="flex min-h-7 w-full cursor-default items-center gap-[7px] mb-[3px] rounded-md px-[9px] py-1 text-left text-[11px] font-medium text-accent-text select-none"><span>消息内容匹配</span><span className="ml-auto min-w-4 rounded-[6px] bg-muted px-[5px] py-px text-center text-[11px] font-medium text-dim tabular-nums">{snapshot.sessionSearchResults.length}</span></div>
               <div className="flex flex-col gap-0.5 pb-0.5">
                 {snapshot.sessionSearchResults.map((result) => {
                   const match = snapshot.sessionProjects
@@ -395,7 +395,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
                     <div key={result.filePath}>
                       {renderSession(session, project)}
                       {result.matches.slice(0, 3).map((item, index) => (
-                        <div className="px-[11px] py-1 text-[10px] leading-[1.45] text-dim" key={`${result.filePath}-${index}`}>{item.snippet}</div>
+                        <div className="px-[11px] py-1 text-[11px] leading-[1.45] text-dim" key={`${result.filePath}-${index}`}>{item.snippet}</div>
                       ))}
                     </div>
                   );
@@ -406,15 +406,15 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
 
           {!query && favoriteSessions.length ? (
             <div className="mb-3">
-              <div className="flex min-h-7 w-full cursor-default items-center gap-[7px] mb-[3px] rounded-md px-[9px] py-1 text-left text-[10px] font-bold tracking-[0.08em] text-accent-text uppercase select-none"><span className="flex-none text-[10px] text-accent-text"><Star size={12} fill="currentColor" /></span><span>收藏</span><span className="ml-auto min-w-4 rounded-[4px] bg-muted px-[5px] py-px text-center text-[10px] font-semibold text-dim tabular-nums">{favoriteSessions.length}</span></div>
+              <div className="flex min-h-7 w-full cursor-default items-center gap-[7px] mb-[3px] rounded-md px-[9px] py-1 text-left text-[11px] font-medium text-accent-text select-none"><span className="flex-none text-[11px] text-accent-text"><Star size={12} fill="currentColor" /></span><span>收藏</span><span className="ml-auto min-w-4 rounded-[6px] bg-muted px-[5px] py-px text-center text-[11px] font-medium text-dim tabular-nums">{favoriteSessions.length}</span></div>
               <div className="flex flex-col gap-0.5 pb-0.5">{favoriteSessions.map(({ session, project }) => renderSession(session, project))}</div>
             </div>
           ) : null}
 
           {!snapshot.sessionsLoading && filteredProjects.length === 0 && archivedSessions.length === 0 ? (
             <div className="grid justify-items-center gap-1.5 px-4 py-9 text-center">
-              <span className="mb-0.5 grid h-9 w-9 place-items-center rounded-[10px] border border-line bg-glass text-ghost"><Folder size={18} /></span>
-              <strong className="text-[12px] font-semibold text-secondary">没有找到会话</strong>
+              <span className="mb-0.5 grid h-9 w-9 place-items-center rounded-[8px] border border-line text-ghost"><Folder size={18} /></span>
+              <strong className="text-[12px] font-medium text-secondary">没有找到会话</strong>
               <p className="m-0 text-[11px] leading-[1.5] text-dim">{query ? '换个关键词试试，或新建一个会话。' : '从「+」新建第一个会话开始。'}</p>
             </div>
           ) : null}
@@ -424,7 +424,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
             return (
               <div className="mb-3" key={key}>
                 <button
-                  className="flex min-h-7 w-full cursor-pointer items-center gap-[7px] mb-[3px] rounded-md px-[9px] py-1 text-left text-[10px] font-bold tracking-[0.08em] text-dim uppercase select-none transition-[background-color,color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary"
+                  className="flex min-h-7 w-full cursor-pointer items-center gap-[7px] mb-[3px] rounded-md px-[9px] py-1 text-left text-[11px] font-medium text-dim select-none transition-[background-color,color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary"
                   type="button"
                   onClick={() => setCollapsed((current) => {
                     const next = new Set(current);
@@ -434,7 +434,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
                 >
                   <span className={`inline-flex w-3 flex-none items-center justify-center text-[12px] leading-none text-secondary transition-transform duration-[var(--duration-fast)]${isCollapsed ? ' -rotate-90' : ''}`} aria-hidden="true"><ChevronRight size={12} /></span>
                   <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap" title={project.path}>{project.displayName || (project.noFolder ? '无文件夹' : basename(project.path || ''))}</span>
-                  <span className="ml-auto min-w-4 rounded-[4px] bg-muted px-[5px] py-px text-center text-[10px] font-semibold text-dim tabular-nums">{project.sessions.length}</span>
+                  <span className="ml-auto min-w-4 rounded-[6px] bg-muted px-[5px] py-px text-center text-[11px] font-medium text-dim tabular-nums">{project.sessions.length}</span>
                 </button>
                 <div className={`flex flex-col gap-0.5 pb-0.5${isCollapsed ? ' hidden' : ''}`}>{project.sessions.map((session) => renderSession(session, project))}</div>
               </div>
@@ -442,7 +442,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
           })}
           {!query && archivedSessions.length ? (
             <div className="mb-3">
-              <div className="flex min-h-7 w-full cursor-default items-center gap-[7px] mb-[3px] rounded-md px-[9px] py-1 text-left text-[10px] font-bold tracking-[0.08em] text-secondary uppercase select-none"><span className="flex-none text-[13px] text-dim"><Archive size={12} /></span><span>已归档</span><span className="ml-auto min-w-4 rounded-[4px] bg-muted px-[5px] py-px text-center text-[10px] font-semibold text-dim tabular-nums">{archivedSessions.length}</span></div>
+              <div className="flex min-h-7 w-full cursor-default items-center gap-[7px] mb-[3px] rounded-md px-[9px] py-1 text-left text-[11px] font-medium text-secondary select-none"><span className="flex-none text-[13px] text-dim"><Archive size={12} /></span><span>已归档</span><span className="ml-auto min-w-4 rounded-[6px] bg-muted px-[5px] py-px text-center text-[11px] font-medium text-dim tabular-nums">{archivedSessions.length}</span></div>
               <div className="flex flex-col gap-0.5 pb-0.5">{archivedSessions.map(({ session, project }) => renderSession(session, project))}</div>
             </div>
           ) : null}
@@ -453,7 +453,7 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
             const active = snapshot.view === view;
             return (
               <button
-                className={`flex min-w-0 h-[34px] items-center justify-center gap-1.5 rounded-[7px] border border-transparent bg-transparent text-[12px] [font-weight:570] text-dim cursor-pointer transition-[background-color,color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary [&>svg]:flex-none [&>svg]:opacity-90 [&>span]:min-w-0 [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap${active ? ' bg-accent-subtle text-accent-text' : ''}`}
+                className={`flex min-w-0 h-[34px] items-center justify-center gap-1.5 rounded-[6px] border border-transparent bg-transparent text-[12px] [font-weight:500] text-dim cursor-pointer transition-[background-color,color] duration-[var(--duration-fast)] hover:bg-glass-hover hover:text-primary [&>svg]:flex-none [&>svg]:opacity-90 [&>span]:min-w-0 [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap${active ? ' bg-accent-subtle text-accent-text' : ''}`}
                 type="button"
                 key={view}
                 aria-current={active ? 'page' : undefined}

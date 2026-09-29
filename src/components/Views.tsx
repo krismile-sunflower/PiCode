@@ -99,7 +99,7 @@ const normalizeProjectPath = (value: string): string => value.replace(/[\\/]+$/,
 /** 当前窗口（accent）与仅运行中（success）共用一枚状态徽章，词汇与侧栏一致。 */
 function LiveBadge({ state }: { state: 'current' | 'running' }) {
   return (
-    <span className={`inline-flex flex-none items-center gap-1 text-[9px] [font-weight:650] before:inline-block before:h-[5px] before:w-[5px] before:rounded-full before:bg-current before:content-[''] ${state === 'current' ? 'text-accent-text' : 'text-success'}`}>
+    <span className={`inline-flex flex-none items-center gap-1 text-[11px] [font-weight:500] before:inline-block before:h-[5px] before:w-[5px] before:rounded-full before:bg-current before:content-[''] ${state === 'current' ? 'text-accent-text' : 'text-success'}`}>
       {state === 'current' ? '当前窗口' : '运行中'}
     </span>
   );
@@ -141,39 +141,39 @@ export function ProjectsView({ snapshot }: { snapshot: AppSnapshot }) {
           </div>
           <div className="pane-header-actions">
             <button
-              className="inline-flex h-8 flex-1 items-center rounded-lg border border-line bg-glass px-3 text-[12px] font-semibold text-secondary transition-colors duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary"
+              className="inline-flex h-8 flex-1 items-center rounded-lg border border-line px-3 text-[12px] font-medium text-secondary transition-colors duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary"
               type="button"
               onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}
             >新建对话</button>
             <button
-              className="inline-flex h-8 flex-1 items-center rounded-lg border border-accent-strong bg-accent-strong px-3 text-[12px] font-semibold text-white transition-colors duration-[var(--duration-fast)] hover:border-accent-hover hover:bg-accent-hover hover:text-white"
+              className="inline-flex h-8 flex-1 items-center rounded-lg border border-accent-strong bg-accent-strong px-3 text-[12px] font-medium text-white transition-colors duration-[var(--duration-fast)] hover:border-accent-hover hover:bg-accent-hover hover:text-white"
               type="button"
               onClick={() => void controller.addProject()}
             >添加项目</button>
             {snapshot.hasActivePiSession ? <button className="pane-close" type="button" title="返回聊天" aria-label="返回聊天" onClick={() => controller.returnToChat()}><X size={16} /></button> : null}
           </div>
         </div>
-        {snapshot.projectError ? <div className="mb-3.5 rounded-[10px] border border-[color-mix(in_srgb,var(--error)_35%,var(--border))] bg-[color-mix(in_srgb,var(--error)_7%,transparent)] px-2.5 py-[9px] text-[11px] text-error">{snapshot.projectError}</div> : null}
-        <label className="mb-3.5 flex h-9 items-center gap-2 rounded-[9px] border border-line bg-panel px-[11px] text-dim focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-subtle)]">
+        {snapshot.projectError ? <div className="mb-3.5 rounded-[8px] border border-[color-mix(in_srgb,var(--error)_35%,var(--border))] bg-[color-mix(in_srgb,var(--error)_7%,transparent)] px-2.5 py-[9px] text-[11px] text-error">{snapshot.projectError}</div> : null}
+        <label className="mb-3.5 flex h-9 items-center gap-2 rounded-[8px] border border-line bg-panel px-[11px] text-dim focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-subtle)]">
           <Search size={15} />
-          <input type="search" placeholder="搜索项目名称或路径" value={query} onChange={(event) => setQuery(event.target.value)} className="h-full w-full min-w-0 border-0 bg-transparent text-[12.5px] text-primary outline-none" />
+          <input type="search" placeholder="搜索项目名称或路径" value={query} onChange={(event) => setQuery(event.target.value)} className="h-full w-full min-w-0 border-0 bg-transparent text-[13px] text-primary outline-none" />
         </label>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-2.5 max-compact:grid-cols-1">
           {!query || '对话 chat 无文件夹 no folder'.includes(query.toLowerCase()) ? (
-            <article className={`group grid cursor-pointer grid-cols-[36px_minmax(0,1fr)] items-start gap-x-[11px] gap-y-1.5 rounded-[11px] border border-transparent bg-panel p-3.5 text-primary shadow-sm transition-[border-color,background-color,box-shadow] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:shadow-md${snapshot.noFolderActive ? ' border-[color-mix(in_srgb,var(--accent)_38%,transparent)]' : ''}`}>
-              <div className="grid h-9 w-9 place-items-center rounded-[9px] bg-muted text-secondary">
+            <article className={`group grid cursor-pointer grid-cols-[36px_minmax(0,1fr)] items-start gap-x-[11px] gap-y-1.5 rounded-[12px] border border-transparent bg-panel p-3.5 text-primary transition-[border-color,background-color] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated${snapshot.noFolderActive ? ' border-[color-mix(in_srgb,var(--accent)_38%,transparent)]' : ''}`}>
+              <div className="grid h-9 w-9 place-items-center rounded-[8px] bg-muted text-secondary">
                 <Eye size={20} />
               </div>
               <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-[7px] overflow-hidden text-[13px] text-primary [font-weight:680] tracking-[-0.015em] text-ellipsis whitespace-nowrap">对话 {snapshot.noFolderActive ? <LiveBadge state="current" /> : null}</div>
+                <div className="flex min-w-0 items-center gap-[7px] overflow-hidden text-[13px] text-primary [font-weight:500] text-ellipsis whitespace-nowrap">对话 {snapshot.noFolderActive ? <LiveBadge state="current" /> : null}</div>
                 {/* Projects and chats are a deliberate split: a project is bound
                     to a repository and may change it; a chat is bound to
                     nothing and starts read-only. */}
-                <div className="mt-[3px] overflow-hidden font-mono text-[10px] leading-[1.4] text-dim text-ellipsis whitespace-nowrap">不绑定仓库，以只读的计划模式开始</div>
-                <div className="mt-1.5 flex gap-2.5 text-[10px] text-ghost"><span>适合提问、调研和临时任务</span></div>
+                <div className="mt-[3px] overflow-hidden font-mono text-[11px] leading-[1.4] text-dim text-ellipsis whitespace-nowrap">不绑定仓库，以只读的计划模式开始</div>
+                <div className="mt-1.5 flex gap-2.5 text-[11px] text-ghost"><span>适合提问、调研和临时任务</span></div>
               </div>
               <div className="col-span-2 mt-0.5 flex items-center justify-end gap-[5px]">
-                <button className="inline-flex h-7 items-center justify-center rounded-[7px] border border-transparent bg-accent-subtle px-[11px] text-[11px] font-semibold text-accent-text transition-colors duration-[var(--duration-fast)] group-hover:bg-accent-strong group-hover:text-white disabled:opacity-50" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}>
+                <button className="inline-flex h-7 items-center justify-center rounded-[6px] border border-transparent bg-accent-subtle px-[11px] text-[11px] font-medium text-accent-text transition-colors duration-[var(--duration-fast)] group-hover:bg-accent-strong group-hover:text-white disabled:opacity-50" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={() => snapshot.noFolderActive ? controller.returnToChat() : void controller.launchChat()}>
                   {snapshot.projectBusyPath === '__no_folder__' ? '正在启动…' : snapshot.noFolderActive ? '返回会话' : '开始对话'}
                 </button>
               </div>
@@ -183,18 +183,18 @@ export function ProjectsView({ snapshot }: { snapshot: AppSnapshot }) {
             const isCurrent = project.active;
             const isRunning = runningPaths.has(normalizeProjectPath(project.path));
             return (
-            <article className={`group grid cursor-pointer grid-cols-[36px_minmax(0,1fr)] items-start gap-x-[11px] gap-y-1.5 rounded-[11px] border border-transparent bg-panel p-3.5 text-primary shadow-sm transition-[border-color,background-color,box-shadow] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:shadow-md${isCurrent ? ' border-[color-mix(in_srgb,var(--accent)_38%,transparent)]' : isRunning ? ' border-[color-mix(in_srgb,var(--success)_38%,transparent)]' : ''}`} key={project.path} onClick={() => openProject(project)}>
-              <div className="grid h-9 w-9 place-items-center rounded-[9px] bg-accent-subtle text-accent-text">
+            <article className={`group grid cursor-pointer grid-cols-[36px_minmax(0,1fr)] items-start gap-x-[11px] gap-y-1.5 rounded-[12px] border border-transparent bg-panel p-3.5 text-primary transition-[border-color,background-color,box-shadow] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:shadow-md${isCurrent ? ' border-[color-mix(in_srgb,var(--accent)_38%,transparent)]' : isRunning ? ' border-[color-mix(in_srgb,var(--success)_38%,transparent)]' : ''}`} key={project.path} onClick={() => openProject(project)}>
+              <div className="grid h-9 w-9 place-items-center rounded-[8px] bg-accent-subtle text-accent-text">
                 <Folder size={20} />
               </div>
               <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-[7px] overflow-hidden text-[13px] text-primary [font-weight:680] tracking-[-0.015em] text-ellipsis whitespace-nowrap">{project.name || basename(project.path) || '未命名项目'} {isCurrent ? <LiveBadge state="current" /> : isRunning ? <LiveBadge state="running" /> : null}</div>
-                <div className="mt-[3px] overflow-hidden font-mono text-[10px] leading-[1.4] text-dim text-ellipsis whitespace-nowrap" title={project.path}>{project.path}</div>
-                <div className="mt-1.5 flex gap-2.5 text-[10px] text-ghost"><span>{Number(project.sessionCount || 0)} 个会话</span><span>{formatRelativeTime(project.lastActive) || '尚未使用'}</span></div>
+                <div className="flex min-w-0 items-center gap-[7px] overflow-hidden text-[13px] text-primary [font-weight:500] text-ellipsis whitespace-nowrap">{project.name || basename(project.path) || '未命名项目'} {isCurrent ? <LiveBadge state="current" /> : isRunning ? <LiveBadge state="running" /> : null}</div>
+                <div className="mt-[3px] overflow-hidden font-mono text-[11px] leading-[1.4] text-dim text-ellipsis whitespace-nowrap" title={project.path}>{project.path}</div>
+                <div className="mt-1.5 flex gap-2.5 text-[11px] text-ghost"><span>{Number(project.sessionCount || 0)} 个会话</span><span>{formatRelativeTime(project.lastActive) || '尚未使用'}</span></div>
               </div>
               <div className="col-span-2 mt-0.5 flex items-center justify-end gap-[5px]">
-                <button className="inline-flex h-7 w-7 items-center justify-center rounded-[7px] border border-line bg-glass p-0 text-secondary transition-colors duration-[var(--duration-fast)] group-hover:border-line-hover group-hover:text-primary disabled:opacity-50" type="button" title="在新窗口打开" disabled={Boolean(snapshot.projectBusyPath)} onClick={(event) => { event.stopPropagation(); void controller.openProjectWindow(project.path); }}><ExternalLink size={13} /></button>
-                <button className="inline-flex h-7 items-center justify-center rounded-[7px] border border-transparent bg-accent-subtle px-[11px] text-[11px] font-semibold text-accent-text transition-colors duration-[var(--duration-fast)] group-hover:bg-accent-strong group-hover:text-white disabled:opacity-50" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={(event) => { event.stopPropagation(); openProject(project); }}>
+                <button className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border border-line p-0 text-secondary transition-colors duration-[var(--duration-fast)] group-hover:border-line-hover group-hover:text-primary disabled:opacity-50" type="button" title="在新窗口打开" disabled={Boolean(snapshot.projectBusyPath)} onClick={(event) => { event.stopPropagation(); void controller.openProjectWindow(project.path); }}><ExternalLink size={13} /></button>
+                <button className="inline-flex h-7 items-center justify-center rounded-[6px] border border-transparent bg-accent-subtle px-[11px] text-[11px] font-medium text-accent-text transition-colors duration-[var(--duration-fast)] group-hover:bg-accent-strong group-hover:text-white disabled:opacity-50" type="button" disabled={Boolean(snapshot.projectBusyPath)} onClick={(event) => { event.stopPropagation(); openProject(project); }}>
                   {snapshot.projectBusyPath === project.path ? '正在启动…' : project.active ? '返回会话' : '打开'}
                 </button>
               </div>
@@ -298,8 +298,8 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
     return (
       <div className={`group flex items-center border-b border-b-[color-mix(in_srgb,var(--border)_72%,transparent)] bg-transparent hover:bg-glass-hover${active ? ' bg-glass-hover' : ''}`} key={`${area}:${change.path}`}>
         <button className="flex min-w-0 flex-1 items-start gap-2.5 border-0 bg-transparent py-[11px] pl-[13px] pr-2 text-left text-secondary cursor-pointer group-hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent" type="button" onClick={() => void controller.selectGitChange(change.path, area)}>
-          <span className={`min-w-[30px] flex-none pt-px text-[10px] font-bold ${label === '新增' ? 'text-success' : label === '删除' ? 'text-error' : label === '重命名' ? 'text-accent' : 'text-warning'}`}>{label}</span>
-          <span className="flex min-w-0 flex-col gap-[3px]"><strong className="overflow-hidden font-mono text-[11px] leading-[1.35] text-ellipsis whitespace-nowrap">{change.path}</strong>{change.originalPath ? <small className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap">{change.originalPath}<ArrowRight size={10} className="mx-1 inline-block align-[-1px]" aria-hidden="true" />{change.path}</small> : null}</span>
+          <span className={`min-w-[30px] flex-none pt-px text-[11px] font-medium ${label === '新增' ? 'text-success' : label === '删除' ? 'text-error' : label === '重命名' ? 'text-accent' : 'text-warning'}`}>{label}</span>
+          <span className="flex min-w-0 flex-col gap-[3px]"><strong className="overflow-hidden font-mono text-[11px] leading-[1.35] text-ellipsis whitespace-nowrap">{change.path}</strong>{change.originalPath ? <small className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">{change.originalPath}<ArrowRight size={10} className="mx-1 inline-block align-[-1px]" aria-hidden="true" />{change.path}</small> : null}</span>
         </button>
         <button className="mr-2 grid h-7 w-7 flex-none place-items-center rounded-md border border-transparent bg-transparent p-0 text-dim opacity-70 cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-elevated enabled:hover:text-accent-text enabled:hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-30" type="button" aria-label={actionLabel} title={actionLabel} disabled={busy} onClick={() => void runGitAction(area === 'staged' ? 'unstage' : 'stage', () => area === 'staged' ? controller.unstageGit(gitChangePaths(change)) : controller.stageGit(gitChangePaths(change)))}>
           {area === 'staged' ? <X size={13} /> : <Plus size={13} />}
@@ -347,26 +347,26 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
         </div>
       </div>
 
-      {snapshot.gitError ? <div className="mx-[clamp(20px,4vw,56px)] mt-6 rounded-[10px] border border-[color-mix(in_srgb,var(--error)_38%,var(--border))] bg-muted px-[15px] py-[13px] text-[12px] text-error">{snapshot.gitError}</div> : null}
-      {!snapshot.gitLoading && !snapshot.gitError && git && !git.isRepository ? <div className="mx-[clamp(20px,4vw,56px)] mt-6 rounded-[10px] border border-line bg-muted px-[15px] py-[13px] text-[12px] text-secondary">当前文件夹不是 Git 仓库。</div> : null}
+      {snapshot.gitError ? <div className="mx-[clamp(20px,4vw,56px)] mt-6 rounded-[8px] border border-[color-mix(in_srgb,var(--error)_38%,var(--border))] bg-muted px-[15px] py-[13px] text-[12px] text-error">{snapshot.gitError}</div> : null}
+      {!snapshot.gitLoading && !snapshot.gitError && git && !git.isRepository ? <div className="mx-[clamp(20px,4vw,56px)] mt-6 rounded-[8px] border border-line bg-muted px-[15px] py-[13px] text-[12px] text-secondary">当前文件夹不是 Git 仓库。</div> : null}
       {git?.isRepository ? (
         <>
-          <div className="mt-6 grid gap-2.5 rounded-xl border border-line bg-panel p-[13px] shadow-sm">
+          <div className="mt-6 grid gap-2.5 rounded-xl border border-line bg-panel p-[13px]">
             <div className="flex min-w-0 items-center justify-between gap-3 max-compact:flex-col max-compact:items-stretch">
               <div className="flex min-w-0 flex-col gap-[3px]">
-                <strong className="overflow-hidden font-mono text-[12px] leading-[1.3] font-semibold text-primary text-ellipsis whitespace-nowrap">{git.branch || 'HEAD'}</strong>
-                <span className="overflow-hidden font-mono text-[10px] leading-[1.3] text-dim text-ellipsis whitespace-nowrap">{git.upstream ? (<>{git.upstream} · <ArrowUp size={11} className="inline-block align-[-1px]" /> {git.ahead} · <ArrowDown size={11} className="inline-block align-[-1px]" /> {git.behind}</>) : '尚未设置上游分支'}</span>
+                <strong className="overflow-hidden font-mono text-[12px] leading-[1.3] font-medium text-primary text-ellipsis whitespace-nowrap">{git.branch || 'HEAD'}</strong>
+                <span className="overflow-hidden font-mono text-[11px] leading-[1.3] text-dim text-ellipsis whitespace-nowrap">{git.upstream ? (<>{git.upstream} · <ArrowUp size={11} className="inline-block align-[-1px]" /> {git.ahead} · <ArrowDown size={11} className="inline-block align-[-1px]" /> {git.behind}</>) : '尚未设置上游分支'}</span>
               </div>
               <div className="flex flex-none gap-[7px] max-compact:w-full max-compact:[&>button]:flex-1">
-                <button type="button" className="min-h-8 rounded-[7px] border border-line-hover bg-elevated px-3 text-[11px] font-semibold text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" disabled={busy || !git.upstream} title={git.upstream ? '仅快进拉取上游分支' : '需要先设置上游分支'} onClick={() => void runGitAction('pull', () => controller.pullGit())}>{gitAction === 'pull' ? '拉取中…' : '拉取'}</button>
-                <button type="button" className="min-h-8 rounded-[7px] border border-line-hover bg-elevated px-3 text-[11px] font-semibold text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" disabled={busy} onClick={() => void runGitAction('push', () => controller.pushGit())}>{gitAction === 'push' ? '推送中…' : '推送'}</button>
+                <button type="button" className="min-h-8 rounded-[6px] border border-line-hover bg-elevated px-3 text-[11px] font-medium text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" disabled={busy || !git.upstream} title={git.upstream ? '仅快进拉取上游分支' : '需要先设置上游分支'} onClick={() => void runGitAction('pull', () => controller.pullGit())}>{gitAction === 'pull' ? '拉取中…' : '拉取'}</button>
+                <button type="button" className="min-h-8 rounded-[6px] border border-line-hover bg-elevated px-3 text-[11px] font-medium text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45" disabled={busy} onClick={() => void runGitAction('push', () => controller.pushGit())}>{gitAction === 'push' ? '推送中…' : '推送'}</button>
               </div>
             </div>
             <div className="flex min-w-0 items-center justify-between gap-3 border-t border-t-line pt-2.5 max-compact:flex-col max-compact:items-stretch">
-              <span className="text-[10px] text-dim">{stagedChanges.length} 个已暂存 · {unstagedChanges.length} 个未暂存</span>
+              <span className="text-[11px] text-dim">{stagedChanges.length} 个已暂存 · {unstagedChanges.length} 个未暂存</span>
               <div className="flex gap-[7px] max-compact:w-full max-compact:[&>button]:flex-1">
-                <button type="button" className="min-h-[29px] rounded-[7px] border border-line bg-transparent px-2.5 text-[10px] text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-[0.42]" disabled={busy || !unstagedChanges.length} onClick={() => void runGitAction('stage', () => controller.stageAllGit())}>全部暂存</button>
-                <button type="button" className="min-h-[29px] rounded-[7px] border border-line bg-transparent px-2.5 text-[10px] text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-[0.42]" disabled={busy || !stagedChanges.length} onClick={() => void runGitAction('unstage', () => controller.unstageAllGit())}>取消全部暂存</button>
+                <button type="button" className="min-h-[29px] rounded-[6px] border border-line bg-transparent px-2.5 text-[11px] text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-[0.42]" disabled={busy || !unstagedChanges.length} onClick={() => void runGitAction('stage', () => controller.stageAllGit())}>全部暂存</button>
+                <button type="button" className="min-h-[29px] rounded-[6px] border border-line bg-transparent px-2.5 text-[11px] text-secondary cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-[0.42]" disabled={busy || !stagedChanges.length} onClick={() => void runGitAction('unstage', () => controller.unstageAllGit())}>取消全部暂存</button>
               </div>
             </div>
             <form className="flex min-w-0 items-center justify-between gap-3 max-compact:flex-col max-compact:items-stretch" onSubmit={(event) => {
@@ -374,20 +374,20 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
               if (!commitMessage.trim() || !stagedChanges.length || busy) return;
               void runGitAction('commit', () => controller.commitGit(commitMessage));
             }}>
-              <input className="min-h-[34px] min-w-0 flex-1 rounded-[7px] border border-line bg-muted px-2.5 text-[11px] text-primary outline-none focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-subtle)]" value={commitMessage} maxLength={500} disabled={busy || !stagedChanges.length} onChange={(event) => setCommitMessage(event.target.value)} placeholder={stagedChanges.length ? '输入提交说明' : '请先暂存需要提交的改动'} aria-label="Git 提交说明" />
-              <button type="submit" className="flex-none min-h-8 rounded-[7px] border border-[color-mix(in_srgb,var(--accent)_48%,var(--border))] bg-accent-subtle px-3 text-[11px] font-semibold text-accent-text cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45 max-compact:flex-1" disabled={busy || !stagedChanges.length || !commitMessage.trim()}>{gitAction === 'commit' ? '提交中…' : `提交暂存 (${stagedChanges.length})`}</button>
+              <input className="min-h-[34px] min-w-0 flex-1 rounded-[6px] border border-line bg-muted px-2.5 text-[11px] text-primary outline-none focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-subtle)]" value={commitMessage} maxLength={500} disabled={busy || !stagedChanges.length} onChange={(event) => setCommitMessage(event.target.value)} placeholder={stagedChanges.length ? '输入提交说明' : '请先暂存需要提交的改动'} aria-label="Git 提交说明" />
+              <button type="submit" className="flex-none min-h-8 rounded-[6px] border border-[color-mix(in_srgb,var(--accent)_48%,var(--border))] bg-accent-subtle px-3 text-[11px] font-medium text-accent-text cursor-pointer enabled:hover:border-accent enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45 max-compact:flex-1" disabled={busy || !stagedChanges.length || !commitMessage.trim()}>{gitAction === 'commit' ? '提交中…' : `提交暂存 (${stagedChanges.length})`}</button>
             </form>
           </div>
           <div className="mt-6 grid min-h-[min(620px,calc(100vh_-_230px))] grid-cols-[minmax(230px,31%)_minmax(0,1fr)] overflow-hidden rounded-xl border border-line bg-muted max-compact:mt-3 max-compact:grid-cols-1">
             <aside className="min-w-0 max-h-[260px] overflow-auto border-b border-b-line bg-[var(--bg-base)] max-compact:max-h-[260px]">
               <div className="flex items-center justify-between gap-2 border-b border-b-line px-[13px] py-[13px] text-[11px] text-dim">
-                <span className="overflow-hidden font-mono font-semibold text-primary text-ellipsis whitespace-nowrap">{git.branch || 'HEAD'}</span>
+                <span className="overflow-hidden font-mono font-medium text-primary text-ellipsis whitespace-nowrap">{git.branch || 'HEAD'}</span>
                 <span>{changeCount ? `${changeCount} 个文件有改动` : '工作区干净'}</span>
               </div>
-              <div className="flex min-h-8 items-center justify-between gap-2 border-b border-b-line bg-panel px-[13px] py-[7px] text-[10px] font-bold tracking-[0.035em] text-dim"><span>暂存的更改</span><strong className="font-mono text-[10px] leading-none text-secondary">{stagedChanges.length}</strong></div>
-              {stagedChanges.length ? stagedChanges.map((change) => renderChange(change, 'staged')) : <div className="p-[13px] text-[10px] text-dim">还没有暂存的改动。</div>}
-              <div className="flex min-h-8 items-center justify-between gap-2 border-b border-b-line bg-panel px-[13px] py-[7px] text-[10px] font-bold tracking-[0.035em] text-dim"><span>更改</span><strong className="font-mono text-[10px] leading-none text-secondary">{unstagedChanges.length}</strong></div>
-              {unstagedChanges.length ? unstagedChanges.map((change) => renderChange(change, 'unstaged')) : <div className="p-[13px] text-[10px] text-dim">没有未暂存的改动。</div>}
+              <div className="flex min-h-8 items-center justify-between gap-2 border-b border-b-line bg-panel px-[13px] py-[7px] text-[11px] font-medium text-dim"><span>暂存的更改</span><strong className="font-mono text-[11px] leading-none text-secondary">{stagedChanges.length}</strong></div>
+              {stagedChanges.length ? stagedChanges.map((change) => renderChange(change, 'staged')) : <div className="p-[13px] text-[11px] text-dim">还没有暂存的改动。</div>}
+              <div className="flex min-h-8 items-center justify-between gap-2 border-b border-b-line bg-panel px-[13px] py-[7px] text-[11px] font-medium text-dim"><span>更改</span><strong className="font-mono text-[11px] leading-none text-secondary">{unstagedChanges.length}</strong></div>
+              {unstagedChanges.length ? unstagedChanges.map((change) => renderChange(change, 'unstaged')) : <div className="p-[13px] text-[11px] text-dim">没有未暂存的改动。</div>}
             </aside>
             <article className="flex min-w-0 flex-col bg-muted">
               {!selected ? <div className="p-[22px] text-[12px] text-dim">选择左侧文件以查看 diff。</div> : null}
@@ -418,7 +418,7 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
               ) : null}
               {snapshot.reviewComments.length ? (
                 <div className="shrink-0 border-t border-line bg-panel px-3.5 py-2.5" aria-label="审阅意见">
-                  <div className="mb-2 flex items-center justify-between gap-2 text-xs text-primary">
+                  <div className="mb-2 flex items-center justify-between gap-2 text-[12px] text-primary">
                     <strong>审阅意见 {snapshot.reviewComments.length}</strong>
                     <div className="flex gap-2">
                       <button className="settings-action-btn" type="button" onClick={() => controller.clearReviewComments()}>清空</button>
@@ -427,7 +427,7 @@ export function ChangesView({ snapshot }: { snapshot: AppSnapshot }) {
                   </div>
                   {snapshot.reviewComments.map((comment) => (
                     <div className="flex items-start gap-2 py-1 text-[11px] text-secondary" key={comment.id}>
-                      <span className="shrink-0 font-mono text-[10px] text-dim">{comment.path}:{comment.line}</span>
+                      <span className="shrink-0 font-mono text-[11px] text-dim">{comment.path}:{comment.line}</span>
                       <span className="min-w-0 flex-1">{comment.text}</span>
                       <button className="icon-btn" type="button" aria-label="删除这条意见" onClick={() => controller.removeReviewComment(comment.id)}><X size={12} /></button>
                     </div>
@@ -494,8 +494,8 @@ function ModelRoutingSection({ snapshot }: { snapshot: AppSnapshot }) {
         return (
           <div className="flex items-center justify-between gap-3 border-b border-b-line py-2 last:border-b-0" key={role}>
             <div className="flex min-w-0 flex-col">
-              <strong className="text-xs text-primary">{label}</strong>
-              <span className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap">{hint}</span>
+              <strong className="text-[12px] text-primary">{label}</strong>
+              <span className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">{hint}</span>
             </div>
             <Select
               variant="compact"
@@ -585,7 +585,7 @@ function AppUpdateSection({ snapshot }: { snapshot: AppSnapshot }) {
           </span>
         </div>
       </div>
-      {update?.notes ? <div className="mt-0.5 overflow-hidden rounded-lg border border-line bg-muted px-2.5 py-[9px] font-mono text-[10px] leading-[1.5] text-dim text-ellipsis whitespace-nowrap">{update.notes}</div> : null}
+      {update?.notes ? <div className="mt-0.5 overflow-hidden rounded-lg border border-line bg-muted px-2.5 py-[9px] font-mono text-[11px] leading-[1.5] text-dim text-ellipsis whitespace-nowrap">{update.notes}</div> : null}
       {update?.error ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{update.error}</div> : null}
 
       <div className="settings-endpoint-row">
@@ -642,8 +642,8 @@ function WorktreeSection({ snapshot }: { snapshot: AppSnapshot }) {
       {snapshot.worktrees.length ? snapshot.worktrees.map((worktree) => (
         <div className="flex items-center justify-between gap-3 border-b border-b-line py-2 last:border-b-0" key={worktree.path}>
           <div className="flex min-w-0 flex-col">
-            <strong className="text-xs text-primary">{worktree.name}{worktree.hasChanges ? <span className="text-[10px] text-warning"> · 有未提交改动</span> : null}</strong>
-            <span className="overflow-hidden text-[10px] text-dim text-ellipsis whitespace-nowrap" title={worktree.path}>{worktree.path}</span>
+            <strong className="text-[12px] text-primary">{worktree.name}{worktree.hasChanges ? <span className="text-[11px] text-warning"> · 有未提交改动</span> : null}</strong>
+            <span className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap" title={worktree.path}>{worktree.path}</span>
           </div>
           <div className="pane-section-actions">
             <button className="settings-action-btn" type="button" onClick={() => void controller.launchProject(worktree.path)}>打开</button>
@@ -746,10 +746,10 @@ function ProjectInstructionsSection({ snapshot }: { snapshot: AppSnapshot }) {
           </button>
         </div>
       </div>
-      {path ? <div className="settings-meta-chip" title={path}><span className="flex-none text-[10px] font-bold tracking-[0.04em] text-dim uppercase">文件</span><span className="min-w-0 overflow-hidden font-mono text-[10px] leading-[1.4] text-secondary text-ellipsis whitespace-nowrap">{path}</span></div> : null}
+      {path ? <div className="settings-meta-chip" title={path}><span className="flex-none text-[11px] font-medium text-dim">文件</span><span className="min-w-0 overflow-hidden font-mono text-[11px] leading-[1.4] text-secondary text-ellipsis whitespace-nowrap">{path}</span></div> : null}
       {error ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{error}</div> : null}
       <textarea
-        className="mt-2 min-h-[260px] w-full resize-y rounded-[10px] border border-line bg-[var(--code-bg)] p-3 text-[12px] leading-[1.65] text-[var(--code-fg)] outline-0 [font-family:var(--app-font-mono)] [tab-size:2] focus:border-accent"
+        className="mt-2 min-h-[260px] w-full resize-y rounded-[8px] border border-line bg-[var(--code-bg)] p-3 text-[12px] leading-[1.65] text-[var(--code-fg)] outline-0 [font-family:var(--app-font-mono)] [tab-size:2] focus:border-accent"
         value={content}
         spellCheck={false}
         disabled={state === 'loading'}
@@ -788,7 +788,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
           <div className="pane-nav-title">设置</div>
           {SETTINGS_SECTIONS.map(([id, label]) => (
             <button
-              className={`pane-nav-item${section === id ? ' bg-accent-subtle! text-accent-text! [font-weight:680]! before:absolute! before:inset-y-[7px]! before:left-0! before:w-0.5! before:rounded-r-[2px]! before:bg-accent! before:content-[""] max-narrow:border-[color-mix(in_srgb,var(--accent)_38%,var(--border))]! max-narrow:before:hidden!' : ''}`}
+              className={`pane-nav-item${section === id ? ' bg-accent-subtle! text-accent-text! [font-weight:500]! before:absolute! before:inset-y-[7px]! before:left-0! before:w-0.5! before:rounded-r-[2px]! before:bg-accent! before:content-[""] max-narrow:border-[color-mix(in_srgb,var(--accent)_38%,var(--border))]! max-narrow:before:hidden!' : ''}`}
               type="button"
               key={id}
               aria-current={section === id ? 'page' : undefined}
@@ -978,7 +978,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                   </div>
                 </div>
 
-                {info?.command ? <div className="mt-0.5 overflow-hidden rounded-lg border border-line bg-muted px-2.5 py-[9px] font-mono text-[10px] leading-[1.5] text-dim text-ellipsis whitespace-nowrap" title={info.command}>{info.command}</div> : null}
+                {info?.command ? <div className="mt-0.5 overflow-hidden rounded-lg border border-line bg-muted px-2.5 py-[9px] font-mono text-[11px] leading-[1.5] text-dim text-ellipsis whitespace-nowrap" title={info.command}>{info.command}</div> : null}
                 {info?.error ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{info.error}</div> : null}
                 {snapshot.piUpdateMessage ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{snapshot.piUpdateMessage}</div> : null}
                 <p className="settings-help">更新会停止当前 Pi 会话。系统安装走 npm 全局更新；内置版本会替换 binaries 中的 pi-package。</p>
@@ -997,7 +997,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                 </div>
                 <div className="settings-row">
                   <span className="settings-label">连接方式</span>
-                  <button className="settings-value-btn min-h-[30px] rounded-lg border border-line bg-muted px-[9px] font-mono text-[10px] leading-none text-primary cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-elevated disabled:text-dim disabled:cursor-not-allowed disabled:opacity-[0.62]" type="button" disabled>
+                  <button className="settings-value-btn min-h-[30px] rounded-lg border border-line bg-muted px-[9px] font-mono text-[11px] leading-none text-primary cursor-pointer enabled:hover:border-line-hover enabled:hover:bg-elevated disabled:text-dim disabled:cursor-not-allowed disabled:opacity-[0.62]" type="button" disabled>
                     {!window.tauDesktop.isTauri ? 'Web 模式' : window.tauDesktop.transport === 'mirror' ? String(snapshot.settings?.tauPort || 3001) : '原生 RPC'}
                   </button>
                 </div>
@@ -1178,8 +1178,8 @@ function ModelsProvidersSection({ snapshot }: { snapshot: AppSnapshot }) {
 
       {snapshot.modelsConfigPath ? (
         <div className="settings-meta-chip" title={snapshot.modelsConfigPath}>
-          <span className="flex-none text-[10px] font-bold tracking-[0.04em] text-dim uppercase">配置文件</span>
-          <span className="min-w-0 overflow-hidden font-mono text-[10px] leading-[1.4] text-secondary text-ellipsis whitespace-nowrap">{snapshot.modelsConfigPath}</span>
+          <span className="flex-none text-[11px] font-medium text-dim">配置文件</span>
+          <span className="min-w-0 overflow-hidden font-mono text-[11px] leading-[1.4] text-secondary text-ellipsis whitespace-nowrap">{snapshot.modelsConfigPath}</span>
         </div>
       ) : null}
       {snapshot.modelsConfigError ? <div className="mt-[9px] rounded-lg border border-[color-mix(in_srgb,var(--warning)_28%,var(--border))] bg-[color-mix(in_srgb,var(--warning)_7%,transparent)] px-2.5 py-2 text-[11px] text-warning">{snapshot.modelsConfigError}</div> : null}
@@ -1188,14 +1188,14 @@ function ModelsProvidersSection({ snapshot }: { snapshot: AppSnapshot }) {
         <div className="settings-help">正在加载模型配置…</div>
       ) : null}
 
-      <div className="mt-[18px] grid grid-cols-[minmax(0,1fr)_minmax(360px,500px)] items-center gap-[18px] rounded-[10px] border border-[color-mix(in_srgb,var(--accent)_24%,var(--border))] bg-[color-mix(in_srgb,var(--accent-subtle)_42%,var(--bg-panel))] px-4 py-3.5 max-narrow:grid-cols-1">
+      <div className="mt-[18px] grid grid-cols-[minmax(0,1fr)_minmax(360px,500px)] items-center gap-[18px] rounded-[8px] border border-[color-mix(in_srgb,var(--accent)_24%,var(--border))] bg-[color-mix(in_srgb,var(--accent-subtle)_42%,var(--bg-panel))] px-4 py-3.5 max-narrow:grid-cols-1">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-[10px] font-bold tracking-[0.04em] text-accent-text [font-weight:750]">PI 默认供应商</span>
-          <strong className="overflow-hidden text-[14px] text-primary text-ellipsis whitespace-nowrap">{snapshot.defaultProvider || '尚未设置'}</strong>
+          <span className="text-[11px] font-medium text-accent-text [font-weight:500]">PI 默认供应商</span>
+          <strong className="overflow-hidden text-[13px] text-primary text-ellipsis whitespace-nowrap">{snapshot.defaultProvider || '尚未设置'}</strong>
           <span className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">默认模型：{snapshot.defaultModel || '尚未设置'}{currentProvider && currentModelId ? ` · 当前会话：${currentProvider}/${currentModelId}` : ''}</span>
         </div>
         <div className="grid grid-cols-2 gap-2 max-compact:grid-cols-1">
-          <div className="flex flex-col gap-[5px] text-[10px] text-secondary">
+          <div className="flex flex-col gap-[5px] text-[11px] text-secondary">
             <span>默认供应商</span>
             <Select
               ariaLabel="默认供应商"
@@ -1209,7 +1209,7 @@ function ModelsProvidersSection({ snapshot }: { snapshot: AppSnapshot }) {
               onChange={(value) => void switchProvider(value)}
             />
           </div>
-          <div className="flex flex-col gap-[5px] text-[10px] text-secondary">
+          <div className="flex flex-col gap-[5px] text-[11px] text-secondary">
             <span>默认模型</span>
             <Select
               ariaLabel="默认模型"
@@ -1226,7 +1226,7 @@ function ModelsProvidersSection({ snapshot }: { snapshot: AppSnapshot }) {
         </div>
       </div>
 
-      <div className="my-[22px] mb-4 grid grid-cols-[minmax(0,1fr)_minmax(320px,460px)] items-center gap-6 rounded-[10px] border border-line bg-panel px-3.5 py-3 max-narrow:grid-cols-1">
+      <div className="my-[22px] mb-4 grid grid-cols-[minmax(0,1fr)_minmax(320px,460px)] items-center gap-6 rounded-[8px] border border-line bg-panel px-3.5 py-3 max-narrow:grid-cols-1">
         <div className="flex flex-col gap-0.5">
           <strong className="text-[13px]">供应商列表</strong>
           <span className="text-[11px] text-dim">{providers.length ? `${providers.length} 个已配置` : '添加一个 API 供应商开始使用'}</span>
@@ -1378,28 +1378,28 @@ function ProviderCard({
   return (
     <article className={`overflow-hidden rounded-xl border bg-[color-mix(in_srgb,var(--bg-panel)_88%,transparent)] shadow-none transition-[border-color,box-shadow] duration-[var(--duration)] hover:border-line-hover${expanded ? ' border-[color-mix(in_srgb,var(--accent)_42%,var(--border))]! bg-muted!' : ' border-line'}`} data-provider-name={name}>
       <button className="flex min-h-[72px] w-full items-center justify-between gap-[13px] border-0 bg-transparent px-[15px] py-[13px] text-left text-inherit cursor-pointer hover:bg-glass-hover max-compact:items-start" type="button" onClick={onToggle}>
-        <span className="inline-flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[9px] border border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] bg-accent-subtle text-[13px] text-accent-text [font-weight:750]">{name.slice(0, 1).toUpperCase()}</span>
+        <span className="inline-flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[8px] border border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] bg-accent-subtle text-[13px] text-accent-text [font-weight:500]">{name.slice(0, 1).toUpperCase()}</span>
         <div className="flex min-w-0 flex-col gap-[5px]">
           <div className="flex min-w-0 flex-wrap items-center gap-[7px]">
-            <strong className="text-[14px] text-primary">{name}</strong>
-            <span className="inline-flex h-[18px] items-center rounded-full border border-line bg-panel px-1.5 text-[9px] font-semibold text-secondary">{models.length} 个模型</span>
-            <span className="inline-flex h-[18px] items-center rounded-full border border-line bg-panel px-1.5 text-[9px] font-semibold text-dim">{provider.api || 'API 未设置'}</span>
+            <strong className="text-[13px] text-primary">{name}</strong>
+            <span className="inline-flex h-[18px] items-center rounded-full border border-line bg-panel px-1.5 text-[11px] font-medium text-secondary">{models.length} 个模型</span>
+            <span className="inline-flex h-[18px] items-center rounded-full border border-line bg-panel px-1.5 text-[11px] font-medium text-dim">{provider.api || 'API 未设置'}</span>
           </div>
           <span className="overflow-hidden text-[11px] text-dim text-ellipsis whitespace-nowrap">
             {provider.baseUrl || '未设置 baseUrl'} · Key {maskApiKey(provider.apiKey)}
           </span>
         </div>
         <div className="ml-auto flex flex-none gap-[18px] border-r border-r-line px-4 max-compact:hidden" aria-hidden="true">
-          <span className="flex min-w-8 flex-col items-center gap-px"><strong className="text-[13px] leading-[1.1] text-primary">{models.length}</strong><small className="text-[9px] text-dim">模型</small></span>
-          <span className="flex min-w-8 flex-col items-center gap-px"><strong className="text-[13px] leading-[1.1] text-primary">{Object.keys(provider.reasoningProfiles || {}).length}</strong><small className="text-[9px] text-dim">预设</small></span>
+          <span className="flex min-w-8 flex-col items-center gap-px"><strong className="text-[13px] leading-[1.1] text-primary">{models.length}</strong><small className="text-[11px] text-dim">模型</small></span>
+          <span className="flex min-w-8 flex-col items-center gap-px"><strong className="text-[13px] leading-[1.1] text-primary">{Object.keys(provider.reasoningProfiles || {}).length}</strong><small className="text-[11px] text-dim">预设</small></span>
         </div>
-        <span className="flex-none text-[11px] font-semibold text-accent-text max-compact:ml-auto">{expanded ? '收起' : '配置'} {expanded ? <ChevronUp size={12} className="ml-1 inline-block align-[-1px]" aria-hidden="true" /> : <ChevronDown size={12} className="ml-1 inline-block align-[-1px]" aria-hidden="true" />}</span>
+        <span className="flex-none text-[11px] font-medium text-accent-text max-compact:ml-auto">{expanded ? '收起' : '配置'} {expanded ? <ChevronUp size={12} className="ml-1 inline-block align-[-1px]" aria-hidden="true" /> : <ChevronDown size={12} className="ml-1 inline-block align-[-1px]" aria-hidden="true" />}</span>
       </button>
 
       {expanded ? (
         <div className="border-t border-t-line px-[15px] pb-[18px]">
           <div className="mt-4">
-            <div className="mb-[9px] flex items-baseline gap-2"><strong className="text-[12px]">连接配置</strong><span className="text-[10px] text-dim">请求地址和鉴权信息</span></div>
+            <div className="mb-[9px] flex items-baseline gap-2"><strong className="text-[12px]">连接配置</strong><span className="text-[11px] text-dim">请求地址和鉴权信息</span></div>
             <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-2.5 max-narrow:grid-cols-1">
             <label className="flex flex-col gap-[5px] text-[11px] text-secondary">
               <span>Base URL</span>
@@ -1426,7 +1426,7 @@ function ProviderCard({
                   autoComplete="off"
                 />
                 <button
-                  className="absolute right-[5px] inline-flex h-[26px] min-w-12 items-center justify-center rounded-md border-0 bg-transparent px-[7px] text-[10px] font-bold text-accent-text cursor-pointer hover:bg-accent-subtle hover:text-accent-hover focus-visible:outline-offset-[-1px]"
+                  className="absolute right-[5px] inline-flex h-[26px] min-w-12 items-center justify-center rounded-md border-0 bg-transparent px-[7px] text-[11px] font-medium text-accent-text cursor-pointer hover:bg-accent-subtle hover:text-accent-hover focus-visible:outline-offset-[-1px]"
                   type="button"
                   onClick={() => setShowApiKey((visible) => !visible)}
                   aria-label={showApiKey ? '隐藏 API Key' : '查看 API Key'}
@@ -1440,9 +1440,9 @@ function ProviderCard({
           </div>
 
           <div className="mt-4">
-            <div className="mb-[9px] flex items-baseline gap-2"><strong className="text-[12px]">兼容性设置</strong><span className="text-[10px] text-dim">根据供应商 API 行为调整请求格式</span></div>
-            <div className="grid grid-cols-[repeat(3,minmax(150px,1fr))_repeat(2,minmax(145px,1fr))] gap-2.5 rounded-[10px] border border-line bg-panel p-3 max-narrow:grid-cols-2">
-            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[7px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
+            <div className="mb-[9px] flex items-baseline gap-2"><strong className="text-[12px]">兼容性设置</strong><span className="text-[11px] text-dim">根据供应商 API 行为调整请求格式</span></div>
+            <div className="grid grid-cols-[repeat(3,minmax(150px,1fr))_repeat(2,minmax(145px,1fr))] gap-2.5 rounded-[8px] border border-line bg-panel p-3 max-narrow:grid-cols-2">
+            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[6px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
               <input
                 type="checkbox"
                 checked={provider.compat?.supportsDeveloperRole === false}
@@ -1456,7 +1456,7 @@ function ProviderCard({
               />
               <span>禁用 developer 角色</span>
             </label>
-            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[7px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
+            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[6px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
               <input
                 type="checkbox"
                 checked={provider.compat?.supportsReasoningEffort === false}
@@ -1470,7 +1470,7 @@ function ProviderCard({
               />
               <span>禁用 reasoning_effort</span>
             </label>
-            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[7px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
+            <label className="inline-flex min-h-8 items-center gap-[7px] rounded-[6px] px-2 text-[11px] text-secondary cursor-pointer select-none hover:bg-glass-hover">
               <input
                 type="checkbox"
                 checked={provider.compat?.supportsUsageInStreaming !== false}
@@ -1481,7 +1481,7 @@ function ProviderCard({
               />
               <span>流式响应包含 usage</span>
             </label>
-            <div className="flex min-w-[150px] flex-col gap-1 text-[10px] text-secondary">
+            <div className="flex min-w-[150px] flex-col gap-1 text-[11px] text-secondary">
               <span>推理参数格式</span>
               <Select
                 ariaLabel="推理参数格式"
@@ -1499,7 +1499,7 @@ function ProviderCard({
                 }}
               />
             </div>
-            <div className="flex min-w-[150px] flex-col gap-1 text-[10px] text-secondary">
+            <div className="flex min-w-[150px] flex-col gap-1 text-[11px] text-secondary">
               <span>最大输出字段</span>
               <Select
                 ariaLabel="最大输出字段"
@@ -1522,20 +1522,20 @@ function ProviderCard({
           </div>
 
           <div className="mt-[22px] flex items-center justify-between gap-2.5 text-[12px] text-primary">
-            <div><strong>推理预设（Reasoning Profile）</strong><span className="ml-[7px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent-subtle align-middle text-[10px] font-bold text-accent-text">{Object.keys(profiles).length}</span></div>
+            <div><strong>推理预设（Reasoning Profile）</strong><span className="ml-[7px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent-subtle align-middle text-[11px] font-medium text-accent-text">{Object.keys(profiles).length}</span></div>
             <button className="settings-action-btn" type="button" onClick={addProfile}>添加 OpenAI 标准预设</button>
           </div>
           <p className="settings-help settings-help-inline">GPT 5.5 请在模型行选择 “OpenAI 标准” 预设；当前聊天选择“高”时，会发送 <code>high</code>。测试按钮也按当前聊天强度发送。</p>
           <div className="mt-2 flex flex-col gap-[7px]">
             {Object.entries(profiles).map(([profileId, profile]) => (
-              <div className="flex w-full min-h-[94px] flex-col gap-2.5 rounded-[9px] border border-line bg-panel p-2.5" key={profileId}>
+              <div className="flex w-full min-h-[94px] flex-col gap-2.5 rounded-[8px] border border-line bg-panel p-2.5" key={profileId}>
                 <div className="grid grid-cols-[minmax(220px,1fr)_auto] items-end gap-3 max-compact:grid-cols-1 max-compact:items-stretch">
                   <label className="flex max-w-[300px] min-w-0 flex-col gap-[5px] text-[11px] text-secondary max-compact:max-w-none"><span>预设名称</span><input className="settings-text-input" value={profile.name || profileId} onChange={(event) => onChange({ ...provider, reasoningProfiles: { ...profiles, [profileId]: { ...profile, name: event.target.value } } })} /></label>
                   <button className="settings-action-btn danger min-h-[34px]!" type="button" onClick={() => { const next = { ...profiles }; delete next[profileId]; onChange({ ...provider, reasoningProfiles: next, models: models.map((model) => model.reasoningProfile === profileId ? { ...model, reasoningProfile: undefined, reasoning: undefined } : model) }); }}>删除预设</button>
                 </div>
                 <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] items-end gap-2 p-0 max-narrow:grid-cols-3 max-compact:grid-cols-2">
                   {THINKING_LEVELS.map((level) => (
-                    <div className="flex min-w-0 flex-col gap-1 text-[10px] text-dim" key={level}>
+                    <div className="flex min-w-0 flex-col gap-1 text-[11px] text-dim" key={level}>
                       <span>{level === 'off' ? REASONING_UI_LABELS.off : thinkingLevelLabel(level)}</span>
                       <Select
                         ariaLabel={`${thinkingLevelLabel(level)}强度映射`}
@@ -1558,7 +1558,7 @@ function ProviderCard({
           <div className="mt-[22px] flex items-center justify-between gap-2.5 text-[12px] text-primary">
             <div>
               <strong>模型列表</strong>
-              <span className="ml-[7px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent-subtle align-middle text-[10px] font-bold text-accent-text">{models.length}</span>
+              <span className="ml-[7px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent-subtle align-middle text-[11px] font-medium text-accent-text">{models.length}</span>
             </div>
             <div className="inline-flex items-center gap-2">
               <button className="settings-action-btn" type="button" onClick={() => void fetchModels()} disabled={fetchingModels}>
@@ -1571,7 +1571,7 @@ function ProviderCard({
           <div className="mt-2 flex flex-col gap-[7px]">
             {models.length === 0 ? <div className="settings-help">还没有模型，点击“添加模型”。</div> : null}
             {models.length > 0 ? (
-              <div className="grid grid-cols-[minmax(150px,1.3fr)_minmax(112px,1fr)_110px_110px_132px] items-center gap-2 px-0.5 text-[10px] font-semibold tracking-[0.03em] text-dim uppercase max-narrow:hidden">
+              <div className="grid grid-cols-[minmax(150px,1.3fr)_minmax(112px,1fr)_110px_110px_132px] items-center gap-2 px-0.5 text-[11px] font-medium text-dim max-narrow:hidden">
                 <span>模型 ID</span>
                 <span>显示名</span>
                 <span>Context</span>
@@ -1580,7 +1580,7 @@ function ProviderCard({
               </div>
             ) : null}
             {models.map((model, index) => (
-              <div className="flex min-h-[94px] flex-col gap-[7px] rounded-[9px] border border-line bg-panel p-2.5 hover:border-line-hover" key={`${name}-model-${index}`}>
+              <div className="flex min-h-[94px] flex-col gap-[7px] rounded-[8px] border border-line bg-panel p-2.5 hover:border-line-hover" key={`${name}-model-${index}`}>
                 <div className="grid grid-cols-[minmax(150px,1.3fr)_minmax(112px,1fr)_110px_110px_132px] items-center gap-2 max-narrow:grid-cols-1 [&>*]:min-w-0">
                   <input className="settings-text-input" value={model.id || ''} placeholder="model-id" onChange={(event) => updateModel(index, { id: event.target.value })} />
                   <input className="settings-text-input" value={model.name || ''} placeholder="可选" onChange={(event) => updateModel(index, { name: event.target.value })} />
@@ -1621,7 +1621,7 @@ function ProviderCard({
                     <button className="settings-action-btn danger" type="button" onClick={() => removeModel(index)}>删除</button>
                   </div>
                 </div>
-                <div className="mt-0.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 border-t border-t-[color-mix(in_srgb,var(--border)_72%,transparent)] pt-[7px] text-[10px] text-dim max-compact:grid-cols-1 max-compact:items-start">
+                <div className="mt-0.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 border-t border-t-[color-mix(in_srgb,var(--border)_72%,transparent)] pt-[7px] text-[11px] text-dim max-compact:grid-cols-1 max-compact:items-start">
                   {model.input?.length ? <span className="w-fit rounded-full bg-panel px-1.5 py-0.5">输入：{model.input.join('、')}</span> : null}
                   <label className="grid grid-cols-[auto_138px] items-center justify-end gap-[7px] whitespace-nowrap max-compact:grid-cols-[auto_minmax(120px,1fr)] max-compact:justify-start">
                     <span>最大输出 Token</span>
@@ -1636,13 +1636,13 @@ function ProviderCard({
                   </label>
                 </div>
                 {!model.reasoningProfile && model.thinkingLevelMap ? (
-                  <div className="grid grid-cols-[minmax(136px,1.4fr)_repeat(7,minmax(0,1fr))] items-end gap-2 rounded-[9px] border border-line bg-panel p-2.5 max-compact:grid-cols-2">
+                  <div className="grid grid-cols-[minmax(136px,1.4fr)_repeat(7,minmax(0,1fr))] items-end gap-2 rounded-[8px] border border-line bg-panel p-2.5 max-compact:grid-cols-2">
                     <span className="text-[11px] leading-[1.45] text-secondary">模型强度映射<br />直接配置，保存后按此映射发送</span>
                     {THINKING_LEVELS.map((level) => {
                       const configured = model.thinkingLevelMap?.[level];
                       const value = configured === null ? 'unsupported' : typeof configured === 'string' ? configured : level === 'off' ? 'omit' : 'unsupported';
                       return (
-                        <div className="flex min-w-0 flex-col gap-1 text-[10px] text-dim" key={level}>
+                        <div className="flex min-w-0 flex-col gap-1 text-[11px] text-dim" key={level}>
                           <span>{level === 'off' ? REASONING_UI_LABELS.off : thinkingLevelLabel(level)}</span>
                           <Select
                             ariaLabel={`${thinkingLevelLabel(level)}强度映射`}
@@ -1665,7 +1665,7 @@ function ProviderCard({
                   </div>
                 ) : null}
                 {testResults[index] ? (
-                  <div className={`rounded-[9px] border p-2.5 text-[11px] text-secondary ${testResults[index].error ? 'border-[color-mix(in_srgb,var(--error)_38%,var(--border))] bg-[color-mix(in_srgb,var(--error)_5%,var(--bg-panel))]' : 'border-[color-mix(in_srgb,var(--success)_32%,var(--border))] bg-[color-mix(in_srgb,var(--success)_5%,var(--bg-panel))]'}`}>
+                  <div className={`rounded-[8px] border p-2.5 text-[11px] text-secondary ${testResults[index].error ? 'border-[color-mix(in_srgb,var(--error)_38%,var(--border))] bg-[color-mix(in_srgb,var(--error)_5%,var(--bg-panel))]' : 'border-[color-mix(in_srgb,var(--success)_32%,var(--border))] bg-[color-mix(in_srgb,var(--success)_5%,var(--bg-panel))]'}`}>
                     <strong>{testResults[index].error ? '测试失败' : '非流式响应'}</strong>
                     <pre className="mt-1.5 mb-0 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.55] text-primary">{testResults[index].error || testResults[index].output}</pre>
                   </div>
@@ -1906,8 +1906,8 @@ function PromptRow({
       <div className="catalog-main">
         <div className="catalog-title-row">
           <div className="catalog-name font-mono text-[12px]">/{template.name}</div>
-          {inUse ? <span className="flex-none font-mono text-[10px] text-accent-text">使用中</span> : null}
-          {template.argumentHint ? <span className="flex-none font-mono text-[10px] text-accent-text">{template.argumentHint}</span> : null}
+          {inUse ? <span className="flex-none font-mono text-[11px] text-accent-text">使用中</span> : null}
+          {template.argumentHint ? <span className="flex-none font-mono text-[11px] text-accent-text">{template.argumentHint}</span> : null}
           <span className={`catalog-tag${template.editable ? '' : ' warn'}`}>{scopeLabel(template.scope)}</span>
         </div>
         <div className="catalog-description">{template.description || '该模板没有提供描述。'}</div>
@@ -2114,7 +2114,7 @@ function PromptsView({ snapshot, mode = 'prompts' }: { snapshot: AppSnapshot; mo
               <div className="catalog-main">
                 <div className="catalog-title-row">
                   <div className="catalog-name font-mono text-[12px]">默认优化</div>
-                  {!activeOptimizer ? <span className="flex-none font-mono text-[10px] text-accent-text">使用中</span> : null}
+                  {!activeOptimizer ? <span className="flex-none font-mono text-[11px] text-accent-text">使用中</span> : null}
                   <span className="catalog-tag warn">内置</span>
                 </div>
                 <div className="catalog-description">{DEFAULT_OPTIMIZE_INSTRUCTION}</div>
@@ -2150,12 +2150,12 @@ function PromptsView({ snapshot, mode = 'prompts' }: { snapshot: AppSnapshot; mo
           </div>
         </div>
         <ul className="m-0 list-none p-0">
-          <li className="grid grid-cols-[56px_minmax(0,1fr)] items-baseline gap-2.5 border-b border-b-line py-1.5 last:border-b-0"><span className="text-[10px] text-dim">全局</span><code className="overflow-hidden font-mono text-[10px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">{snapshot.prompts?.userDir || '~/.pi/agent/prompts'}</code></li>
+          <li className="grid grid-cols-[56px_minmax(0,1fr)] items-baseline gap-2.5 border-b border-b-line py-1.5 last:border-b-0"><span className="text-[11px] text-dim">全局</span><code className="overflow-hidden font-mono text-[11px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">{snapshot.prompts?.userDir || '~/.pi/agent/prompts'}</code></li>
           <li className="grid grid-cols-[56px_minmax(0,1fr)] items-baseline gap-2.5 border-b border-b-line py-1.5 last:border-b-0">
-            <span className="text-[10px] text-dim">项目</span>
-            <code className="overflow-hidden font-mono text-[10px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">{projectDir || '<项目>/.pi/prompts'}{snapshot.prompts && !snapshot.prompts.projectTrusted ? '（项目尚未信任，Pi 不会加载）' : ''}</code>
+            <span className="text-[11px] text-dim">项目</span>
+            <code className="overflow-hidden font-mono text-[11px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">{projectDir || '<项目>/.pi/prompts'}{snapshot.prompts && !snapshot.prompts.projectTrusted ? '（项目尚未信任，Pi 不会加载）' : ''}</code>
           </li>
-          <li className="grid grid-cols-[56px_minmax(0,1fr)] items-baseline gap-2.5 border-b border-b-line py-1.5 last:border-b-0"><span className="text-[10px] text-dim">软件包</span><code className="overflow-hidden font-mono text-[10px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">settings.json 里 packages 声明的包：pi.prompts 或 prompts/ 目录</code></li>
+          <li className="grid grid-cols-[56px_minmax(0,1fr)] items-baseline gap-2.5 border-b border-b-line py-1.5 last:border-b-0"><span className="text-[11px] text-dim">软件包</span><code className="overflow-hidden font-mono text-[11px] leading-[1.6] text-secondary text-ellipsis whitespace-nowrap">settings.json 里 packages 声明的包：pi.prompts 或 prompts/ 目录</code></li>
         </ul>
         <p className="pane-section-note">
           settings.json 的 <code>prompts</code> 数组不是额外来源，而是对上面前两项的启用/禁用过滤器（只有 <code>!</code>、<code>+</code>、<code>-</code> 前缀的条目生效）。
@@ -2189,7 +2189,7 @@ export function CustomizationView({ snapshot }: { snapshot: AppSnapshot }) {
           <div className="pane-nav-title">定制</div>
           {tabs.map((item) => (
             <button
-              className={`pane-nav-item${tab === item.id ? ' bg-accent-subtle! text-accent-text! [font-weight:680]! before:absolute! before:inset-y-[7px]! before:left-0! before:w-0.5! before:rounded-r-[2px]! before:bg-accent! before:content-[""] max-narrow:border-[color-mix(in_srgb,var(--accent)_38%,var(--border))]! max-narrow:before:hidden!' : ''}`}
+              className={`pane-nav-item${tab === item.id ? ' bg-accent-subtle! text-accent-text! [font-weight:500]! before:absolute! before:inset-y-[7px]! before:left-0! before:w-0.5! before:rounded-r-[2px]! before:bg-accent! before:content-[""] max-narrow:border-[color-mix(in_srgb,var(--accent)_38%,var(--border))]! max-narrow:before:hidden!' : ''}`}
               type="button"
               key={item.id}
               aria-current={tab === item.id ? 'page' : undefined}
@@ -2310,7 +2310,7 @@ function AutomationsView({ snapshot }: { snapshot: AppSnapshot }) {
           </div>
 
           <textarea
-            className="w-full resize-y rounded-[8px] border border-line bg-muted p-2 text-xs text-primary outline-0 [font-family:inherit]"
+            className="w-full resize-y rounded-[8px] border border-line bg-muted p-2 text-[12px] text-primary outline-0 [font-family:inherit]"
             rows={3}
             value={item.prompt}
             aria-label="任务提示词"
@@ -2357,7 +2357,7 @@ function AutomationsView({ snapshot }: { snapshot: AppSnapshot }) {
               onChange={(event) => update(item.id, { projectPath: event.target.value })}
             />
           </div>
-          <div className="text-[10px] text-dim">{automationStatus(item)}</div>
+          <div className="text-[11px] text-dim">{automationStatus(item)}</div>
         </div>
       )) : <div className="settings-help">还没有定时任务。新建一个，让 Pi 每天早上先把简报准备好。</div>}
       <p className="settings-help">任务会启动（或复用）对应项目的 Pi 进程并发送提示词；PiCode 关闭时不会执行。</p>

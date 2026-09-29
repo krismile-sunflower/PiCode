@@ -29,8 +29,8 @@ interface SelectProps {
 const TRIGGER_STYLES: Record<NonNullable<SelectProps['variant']>, string> = {
   field: 'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-line bg-muted px-2.5 text-left text-[12px] text-primary hover:border-line-hover',
   compact: 'flex h-7 w-full items-center justify-between gap-1.5 rounded-lg border border-line bg-muted px-2 text-left text-[11px] text-primary hover:border-line-hover',
-  ghost: 'inline-flex h-[29px] items-center justify-between gap-1.5 rounded-md border border-transparent bg-transparent px-2 text-[10px] text-secondary hover:border-line hover:bg-glass-hover hover:text-primary',
-  glass: 'inline-flex h-[30px] items-center justify-between gap-1.5 rounded-[7px] border border-transparent bg-glass px-2.5 text-[10px] text-secondary hover:border-line hover:bg-elevated hover:text-primary',
+  ghost: 'inline-flex h-[29px] items-center justify-between gap-1.5 rounded-md border border-transparent bg-transparent px-2 text-[11px] text-secondary hover:border-line hover:bg-glass-hover hover:text-primary',
+  glass: 'inline-flex h-[30px] items-center justify-between gap-1.5 rounded-[6px] border border-transparent  px-2.5 text-[11px] text-secondary hover:border-line hover:bg-elevated hover:text-primary',
 };
 
 const MENU_MAX_HEIGHT = 280;
@@ -189,13 +189,7 @@ export function Select({
               const isActive = index === active && !option.disabled;
               return (
                 <button
-                  className={`flex w-full items-center justify-between gap-2 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-[12px] ${
-                    option.disabled
-                      ? 'cursor-not-allowed opacity-40'
-                      : isActive
-                        ? 'bg-accent-subtle text-accent-text cursor-pointer'
-                        : 'text-secondary hover:bg-glass-hover hover:text-primary cursor-pointer'
-                  }`}
+                  className={`flex w-full items-center justify-between gap-2 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-[12px] ${ option.disabled ? 'cursor-not-allowed opacity-40' : isActive ? 'bg-accent-subtle text-accent-text cursor-pointer' : 'text-secondary hover:bg-glass-hover hover:text-primary cursor-pointer' }`}
                   type="button"
                   role="option"
                   aria-selected={isSelected}
