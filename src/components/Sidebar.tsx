@@ -5,6 +5,7 @@ import { basename, formatRelativeTime } from '../lib/utils';
 import { controller } from '../app/controller';
 import {
   Archive,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -267,26 +268,26 @@ export function Sidebar({ snapshot, open, onToggle, onClose }: SidebarProps) {
         </header>
 
         <div className="flex gap-[5px] px-[9px] pt-[9px] pb-2">
-          <label className="flex h-8 min-w-0 flex-1 items-center gap-[7px] rounded-lg border border-line px-[9px] text-dim transition-[border-color,box-shadow,background-color,color] duration-[var(--duration-fast)] focus-within:border-accent focus-within:bg-panel focus-within:text-primary focus-within:shadow-[0_0_0_2px_var(--accent-subtle)]">
+          <label className="flex h-8 min-w-0 flex-1 items-center gap-[7px] rounded-lg border border-line bg-muted px-[9px] text-dim transition-[border-color,box-shadow,background-color,color] duration-[var(--duration-fast)] hover:border-line-hover focus-within:border-accent focus-within:bg-panel focus-within:text-primary focus-within:shadow-[0_0_0_2px_var(--accent-subtle)]">
             <Search size={13} />
             <input type="search" className="h-full w-full min-w-0 border-0 bg-transparent p-0 text-[13px] text-primary shadow-none outline-none placeholder:text-dim focus:border-0 focus:bg-transparent focus:shadow-none [&::-webkit-search-cancel-button]:hidden" placeholder="搜索会话" value={query} onChange={(event) => setQuery(event.target.value)} />
           </label>
-          <button className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-line text-secondary cursor-pointer transition-[color,background-color,border-color,transform] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary active:scale-[0.94]" type="button" title="刷新会话" aria-label="刷新会话" onClick={() => void controller.loadSessions()}>
+          <button className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-transparent text-secondary cursor-pointer transition-[color,background-color,border-color,transform] duration-[var(--duration-fast)] hover:border-line hover:bg-glass-hover hover:text-primary active:scale-[0.94]" type="button" title="刷新会话" aria-label="刷新会话" onClick={() => void controller.loadSessions()}>
             <RotateCw size={14} />
           </button>
-          <div className="relative flex items-center gap-px">
-            <button className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-accent-strong bg-accent-strong text-white cursor-pointer transition-[color,background-color,border-color,transform] duration-[var(--duration-fast)] hover:border-accent-hover hover:bg-accent-hover hover:text-white active:scale-[0.94]" type="button" title="新建会话 (Ctrl+N)" aria-label="新建会话" onClick={() => void controller.newSession()}>
+          <div className="relative flex items-center">
+            <button className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-l-lg rounded-r-none bg-accent-strong text-white cursor-pointer transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-accent-hover active:scale-[0.94]" type="button" title="新建会话 (Ctrl+N)" aria-label="新建会话" onClick={() => void controller.newSession()}>
               <Plus size={15} />
             </button>
             <button
-              className="inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg border border-line px-1 text-secondary cursor-pointer transition-[color,background-color,border-color,transform] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary active:scale-[0.94]"
+              className="inline-flex h-8 w-[22px] flex-none items-center justify-center rounded-r-lg rounded-l-none border-l border-l-[color-mix(in_srgb,white_24%,transparent)] bg-accent-strong text-white cursor-pointer transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-accent-hover active:scale-[0.94]"
               type="button"
               title="选择新会话的工作方式"
               aria-label="选择新会话的工作方式"
               aria-expanded={modeMenuOpen}
               onClick={(event) => { event.stopPropagation(); setModeMenuOpen((value) => !value); }}
             >
-              <ChevronRight size={11} />
+              <ChevronDown size={11} className={`transition-transform duration-[var(--duration-fast)]${modeMenuOpen ? ' rotate-180' : ''}`} />
             </button>
             {modeMenuOpen ? (
               <div className="absolute right-0 top-full z-[130] mt-1.5 flex w-[300px] flex-col gap-0.5 rounded-[var(--radius-md)] border border-line-hover bg-elevated p-[5px] shadow-md" onClick={(event) => event.stopPropagation()}>

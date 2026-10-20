@@ -14,13 +14,16 @@ import {
 import {
   ArrowDown,
   Brain,
+  Bug,
   ChevronRight,
   CircleAlert,
   Copy,
   GitBranch,
+  ListTodo,
   PenLine,
   RotateCw,
   ShieldCheck,
+  Telescope,
   Terminal,
   Trash2,
 } from 'lucide-react';
@@ -73,18 +76,21 @@ function Welcome() {
       title: '理解这个项目',
       description: '快速梳理结构、技术栈与运行方式。',
       prompt: '帮我快速了解这个项目的结构、技术栈和运行方式。',
+      icon: Telescope,
     },
     {
       id: 'plan',
       title: '规划一次改动',
       description: '先确认影响范围，再拆分可执行步骤。',
       prompt: '我想实现一个功能，请先分析影响范围并给出计划。',
+      icon: ListTodo,
     },
     {
       id: 'debug',
       title: '排查一个问题',
       description: '描述现象，Pi 会协助定位原因与修复方向。',
       prompt: '我遇到了一个问题，请帮助我定位原因并提出修复方案。',
+      icon: Bug,
     },
   ];
 
@@ -96,22 +102,23 @@ function Welcome() {
     <section className="relative grid min-h-0 flex-1 place-items-center overflow-hidden px-6 py-6 max-compact:min-h-[calc(100%_-_28px)] max-compact:px-6" aria-label="开始新会话">
       <div className="relative z-[1] w-[min(100%,720px)]">
         <h1 className="m-0 text-center text-[22px] font-medium leading-[1.35] text-primary">把想法变成下一步行动。</h1>
-        <div className="mt-6 flex flex-wrap justify-center gap-2" aria-label="常用起点">
+        <div className="mt-7 flex flex-wrap justify-center gap-2" aria-label="常用起点">
           {starters.map((starter) => (
             <button
-              className="rounded-[6px] border border-line px-3 py-1.5 text-[12px] text-secondary cursor-pointer transition-[border-color,background-color,color] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-panel hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="group inline-flex min-h-[34px] items-center gap-[7px] rounded-lg border border-line bg-muted px-[13px] text-[12px] text-secondary cursor-pointer transition-[border-color,background-color,color] duration-[var(--duration-fast)] hover:border-line-hover hover:bg-elevated hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               key={starter.id}
               type="button"
               title={starter.description}
               onClick={() => prefillComposer(starter.prompt)}
             >
+              <starter.icon size={13} className="flex-none text-dim transition-colors duration-[var(--duration-fast)] group-hover:text-secondary" aria-hidden="true" />
               {starter.title}
             </button>
           ))}
         </div>
-        <div className="mt-5 flex justify-center text-[11px] text-dim">
+        <div className="mt-6 flex justify-center text-[11px] text-dim">
           <button
-            className="inline-flex items-center gap-1.5 border-0 bg-transparent text-inherit [font:inherit] cursor-pointer hover:text-secondary"
+            className="inline-flex items-center gap-2 border-0 bg-transparent text-inherit [font:inherit] cursor-pointer transition-colors duration-[var(--duration-fast)] hover:text-secondary"
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('pi-studio:show-shortcuts'))}
           >

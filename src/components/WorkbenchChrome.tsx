@@ -55,6 +55,7 @@ import {
   ChevronDown,
   CircleAlert,
   CircleCheck,
+  ClipboardList,
   Eye,
   ExternalLink,
   File as FileIcon,
@@ -62,6 +63,7 @@ import {
   Folder,
   FolderTree,
   FoldVertical,
+  Hammer,
   ImageIcon,
   Info,
   Keyboard,
@@ -282,7 +284,7 @@ export function Header({ snapshot, sidebarOpen, onOpenSidebar, fileOpen, onToggl
           ariaLabel="思考强度"
           value={snapshot.thinkingLevel}
           className="max-compact:hidden!"
-          leading={<span>思考：</span>}
+          leading={<Brain size={14} />}
           options={thinkingOptions}
           onChange={(level) => void controller.setThinkingLevel(level)}
         />
@@ -1155,24 +1157,24 @@ export function Composer({ snapshot, pendingFiles, editingMessage, onRemoveFile,
             <div className="flex flex-nowrap items-center gap-0.5">
               <div className="inline-grid grid-cols-[repeat(2,auto)] gap-0.5 rounded-[6px] border border-line p-0.5" role="group" aria-label="Agent 工作模式">
                 <button
-                  className={`min-h-[25px] rounded-[6px] border-0 bg-transparent px-2 text-[12px] font-medium cursor-pointer transition-[background-color,color,box-shadow] duration-[var(--duration-fast)] enabled:hover:bg-glass-hover enabled:hover:text-primary max-compact:min-h-[27px] max-compact:px-[7px] ${planReadOnly ? 'bg-[color-mix(in_srgb,var(--warning)_16%,var(--bg-elevated))]! text-[color-mix(in_srgb,var(--warning)_86%,var(--text-primary))]! shadow-[var(--shadow-inset)]' : 'text-dim'}`}
+                  className={`inline-flex min-h-[25px] items-center gap-[5px] rounded-[6px] border-0 bg-transparent px-2 text-[12px] font-medium cursor-pointer transition-[background-color,color,box-shadow] duration-[var(--duration-fast)] enabled:hover:bg-glass-hover enabled:hover:text-primary max-compact:min-h-[27px] max-compact:px-[7px] ${planReadOnly ? 'bg-[color-mix(in_srgb,var(--warning)_16%,var(--bg-elevated))]! text-[color-mix(in_srgb,var(--warning)_86%,var(--text-primary))]! shadow-[var(--shadow-inset)]' : 'text-dim'}`}
                   type="button"
                   aria-pressed={planReadOnly}
                   disabled={snapshot.isStreaming || snapshot.sessionSwitching}
                   onClick={() => void controller.enterPlan()}
-                >计划</button>
+                ><ClipboardList size={12} aria-hidden="true" />计划</button>
                 <button
-                  className={`min-h-[25px] rounded-[6px] border-0 bg-transparent px-2 text-[12px] font-medium cursor-pointer transition-[background-color,color,box-shadow] duration-[var(--duration-fast)] enabled:hover:bg-glass-hover enabled:hover:text-primary max-compact:min-h-[27px] max-compact:px-[7px] ${!planReadOnly ? 'bg-accent-subtle! text-accent-text! shadow-[var(--shadow-inset)]' : 'text-dim'}`}
+                  className={`inline-flex min-h-[25px] items-center gap-[5px] rounded-[6px] border-0 bg-transparent px-2 text-[12px] font-medium cursor-pointer transition-[background-color,color,box-shadow] duration-[var(--duration-fast)] enabled:hover:bg-glass-hover enabled:hover:text-primary max-compact:min-h-[27px] max-compact:px-[7px] ${!planReadOnly ? 'bg-accent-subtle! text-accent-text! shadow-[var(--shadow-inset)]' : 'text-dim'}`}
                   type="button"
                   aria-pressed={!planReadOnly}
                   disabled={snapshot.isStreaming || snapshot.sessionSwitching}
                   onClick={() => void controller.enterBuild()}
-                >构建</button>
+                ><Hammer size={12} aria-hidden="true" />构建</button>
               </div>
-              <button className="static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-md border border-transparent bg-transparent px-2 text-[11px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden" type="button" title="命令（Ctrl+K）" aria-label="打开命令" onClick={onOpenCommands}><Plus size={16} /><span>命令</span></button>
-              <button className="static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-md border border-transparent bg-transparent px-2 text-[11px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden" type="button" title="添加图片" aria-label="添加图片" onClick={() => imageInputRef.current?.click()}><ImageIcon size={16} /><span>图片</span></button>
+              <button className="static inline-flex h-[29px] w-[29px] flex-none items-center justify-center rounded-md border border-transparent bg-transparent text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary" type="button" title="命令（Ctrl+K）" aria-label="打开命令" onClick={onOpenCommands}><Plus size={16} /></button>
+              <button className="static inline-flex h-[29px] w-[29px] flex-none items-center justify-center rounded-md border border-transparent bg-transparent text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary" type="button" title="添加图片" aria-label="添加图片" onClick={() => imageInputRef.current?.click()}><ImageIcon size={16} /></button>
               <input ref={imageInputRef} type="file" accept="image/*" multiple hidden onChange={(event: ChangeEvent<HTMLInputElement>) => { if (event.target.files) void addFiles(event.target.files); event.target.value = ''; }} />
-              {recognitionRef.current || window.SpeechRecognition || window.webkitSpeechRecognition ? <button className={`static inline-flex h-[29px] w-auto flex-none items-center justify-center gap-[5px] rounded-md border border-transparent bg-transparent px-2 text-[11px] text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary max-compact:w-[30px] max-compact:p-0 max-compact:[&>span]:hidden${recording ? ' text-error! animate-[workbenchPulse_1.4s_ease-in-out_infinite]' : ''}`} type="button" title={recording ? '停止录音' : '语音输入'} onClick={toggleRecording}><Mic size={16} /><span>语音</span></button> : null}
+              {recognitionRef.current || window.SpeechRecognition || window.webkitSpeechRecognition ? <button className={`static inline-flex h-[29px] w-[29px] flex-none items-center justify-center rounded-md border border-transparent bg-transparent text-secondary cursor-pointer hover:border-line hover:bg-glass-hover hover:text-primary${recording ? ' text-error! animate-[workbenchPulse_1.4s_ease-in-out_infinite]' : ''}`} type="button" title={recording ? '停止录音' : '语音输入'} onClick={toggleRecording}><Mic size={16} /></button> : null}
               <div className="relative ml-auto flex-none" ref={optimizeRef}>
                 <div className="inline-flex items-center">
                   <button

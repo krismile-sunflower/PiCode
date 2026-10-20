@@ -822,7 +822,7 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
               </div>
               <div className="theme-grid">
                 {(Object.entries(themes) as Array<[ThemeId, (typeof themes)[ThemeId]]>).map(([id, value]) => (
-                <button className={`theme-swatch${theme === id ? ' border-accent! shadow-[0_0_0_3px_var(--accent-subtle)]' : ''}`}
+                <button className={`theme-swatch${theme === id ? ' active' : ''}`}
                     data-label={value.name}
                     aria-label={`切换为${value.name}主题`}
                     aria-pressed={theme === id}
@@ -830,8 +830,18 @@ export function SettingsView({ snapshot }: { snapshot: AppSnapshot }) {
                     key={id}
                     onClick={() => { setTheme(applyTheme(id)); }}
                   >
-                    <span className="swatch-colors">
-                      {value.colors.map((color) => <span className="swatch-dot" style={{ background: color }} key={color} />)}
+                    <span className="theme-preview" style={{ background: value.colors[0] }} aria-hidden="true">
+                      <span className="theme-preview-chrome" style={{ background: value.colors[1] }}>
+                        <i /><i /><i />
+                      </span>
+                      <span className="theme-preview-body">
+                        <span className="theme-preview-side" style={{ background: value.colors[1] }} />
+                        <span className="theme-preview-main">
+                          <span className="theme-preview-line" style={{ background: value.colors[2], width: '46%' }} />
+                          <span className="theme-preview-line" style={{ background: `color-mix(in srgb, ${value.colors[2]} 26%, transparent)`, width: '78%' }} />
+                          <span className="theme-preview-line" style={{ background: `color-mix(in srgb, ${value.colors[3]} 55%, transparent)`, width: '30%' }} />
+                        </span>
+                      </span>
                     </span>
                   </button>
                 ))}
